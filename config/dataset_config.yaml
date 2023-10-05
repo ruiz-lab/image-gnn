@@ -1,0 +1,4 @@
+train:
+    base_dir: data/processed/train
+test:
+    base_dir: data/processed/test

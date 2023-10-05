@@ -6,6 +6,15 @@ __pycache__/
 # C extensions
 *.so
 
+# Ignore everything in the following folders
+data/
+logs/**
+**/*.pkl
+**/*.csv
+.vscode/
+.env/
+wandb/
+
 # Distribution / packaging
 .Python
 build/
