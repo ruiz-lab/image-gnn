@@ -41,7 +41,7 @@ class Trainer():
             dataset=self.train_ds, 
             batch_size=8, 
             shuffle=True, 
-            num_workers=4
+            num_workers=8
         )
 
         test_dl = DataLoader(
