@@ -8,14 +8,16 @@ import torch
 import torch.nn as nn
 
 from tqdm import tqdm
+from datetime import datetime
 
 from pathlib import Path
 
 from torch_geometric.loader import DataLoader
 
-from utils.metrics import torch_rmse
+from utils.metrics import torch_rmse, torch_vae_loss
 from data_preproc.datasets import build_datasets
-from models.models import Nerov2
+from models.models import VAEModel
+
 
 class Trainer():
 
@@ -23,7 +25,8 @@ class Trainer():
         self, 
         dataset_config, 
         training_config, 
-        model_config
+        model_config,
+        save_model=False
     ):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.train_ds, self.test_ds = build_datasets(dataset_config)
@@ -36,17 +39,23 @@ class Trainer():
     def run_epoch(self, epochs, model, dl, mode):
         pass
 
+    def model_checkpoint(self, model, mean_loss, path="src/scripts/checkpoints/"):
+        now = datetime.now().strftime("%m%d%y-%H%M%S-")
+        path = path + now + format(mean_loss, ".0f") + ".pt"
+
+        torch.save(model.state_dict(), path)
+
     def train(self):
         train_dl = DataLoader(
             dataset=self.train_ds, 
-            batch_size=8, 
+            batch_size=100, 
             shuffle=True, 
             num_workers=4
         )
 
         test_dl = DataLoader(
-            dataset=self.test_ds, 
-            batch_size=8, 
+            dataset=self.test_ds,
+            batch_size=100, 
             shuffle=True, 
             num_workers=4
         )
@@ -94,25 +103,25 @@ class Trainer():
 
                     test_losses.append(J.cpu().numpy())
 
-            test_rsme = np.mean(test_losses)
-            train_rsme = np.mean(train_losses)
+            test_loss = np.mean(test_losses)
+            train_loss = np.mean(train_losses)
 
             wandb.log({
-                "test_rmse": test_rsme,
-                "train_rmse": train_rsme
+                "test_loss": test_loss,
+                "train_loss": train_loss
             })
 
     def train_eval(self):
         train_dl = DataLoader(
             dataset=self.train_ds, 
-            batch_size=8, 
+            batch_size=100, 
             shuffle=True, 
             num_workers=4
         )
 
         test_dl = DataLoader(
             dataset=self.test_ds, 
-            batch_size=8, 
+            batch_size=100, 
             shuffle=True, 
             num_workers=4
         )
@@ -122,6 +131,7 @@ class Trainer():
 
         lr = self.training_config["learning_rate"]
         epochs = self.training_config["num_epochs"] 
+        save_model = self.training_config["save_model"]
 
         model : nn.Module = getattr(sys.modules[__name__], self.model_config["model"])
         model = model(**model.pre_init(self.model_config["args"])).to(self.device)
@@ -170,3 +180,6 @@ class Trainer():
                     test_losses.append(J.cpu().numpy())
 
                 print(f"Test Loss: {np.mean(test_losses)}")
+
+        if save_model:
+            self.model_checkpoint(model, np.mean(test_losses))
