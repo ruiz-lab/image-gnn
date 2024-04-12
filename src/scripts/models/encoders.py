@@ -3,9 +3,7 @@ import torch.nn as nn
 
 from torch.nn import functional as F
 
-from data.datasets import TimeSeries
-
-from typing import List, Dict
+from typing import List, Dict, Any
 
 
 class PosEncoding(nn.Module):
@@ -215,7 +213,7 @@ class TemporalEncoder(nn.Module):
             torch.Tensor: Encoded representations of the time-series sequences in a graph-format.
         """
 
-        ts_dict : Dict[str, List[TimeSeries]] = batch.ts
+        ts_dict : Dict[str, List[Any]] = batch.ts
         batch_size = batch.y.shape[0]
         device = batch.y.device
         num_series = len(list(ts_dict.keys()))
@@ -239,3 +237,36 @@ class TemporalEncoder(nn.Module):
                 X[b, i] = x[key][b]
 
         return X.to(device)
+
+class EncoderVAE(nn.Module):
+
+    def __init__(
+        self, 
+        in_features, 
+        hidden_size,
+        latent_size,
+        layers=1, 
+        activation_fn=nn.ReLU(),
+        **kwargs
+    ):
+        super().__init__()
+
+        self.layers = nn.ModuleList(
+            [
+                nn.Linear(in_features, hidden_size),
+                *[nn.Linear(hidden_size, hidden_size) for _ in range(layers-2)]
+            ]
+        )
+        self.mean_layer = nn.Linear(hidden_size, latent_size)
+        self.var_layer = nn.Linear(hidden_size, latent_size)
+        self.activation_fn = activation_fn
+
+    def forward(self, x):
+        out = x
+        for layer in self.layers:
+            out = self.activation_fn(layer(out))
+
+        mean = self.activation_fn(self.mean_layer(out))
+        logvar = self.activation_fn(self.var_layer(out))
+
+        return mean, logvar
