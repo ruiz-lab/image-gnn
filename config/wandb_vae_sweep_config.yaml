@@ -1,0 +1,13 @@
+program: train_model.py
+name: VAE_arch_optimization_v2
+method: grid
+metric:
+    goal: minimize
+    name: test_loss
+parameters:
+    in_features:
+        value: 784
+    hidden_size:
+        values: [650, 512, 256, 128, 64]
+    layers:
+        values: [16, 8, 4, 2]
