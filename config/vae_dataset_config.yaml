@@ -1,0 +1,6 @@
+train:
+    base_dir: data/
+    train: True
+test:
+    base_dir: data/
+    train: False

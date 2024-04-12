@@ -1,0 +1,59 @@
+program: train_model.py
+name: GNN_arch_optimization
+method: grid
+metric:
+    goal: minimize
+    name: test_loss
+parameters:
+    enc_args:
+        parameters:
+            time_enc_size: 
+                values: [3, 4]
+            embedding_size: 
+                values: [20, 30, 40]
+            num_layers:
+                value: 1
+            dropout:
+                value: 0.1
+            rnn_config:
+                parameters:
+                    UTME:
+                        parameters:
+                            input_size:
+                                value: 1
+                    UTMN:
+                        parameters:
+                            input_size:
+                                value: 1
+                    Yaw:
+                        parameters:
+                            input_size:
+                                value: 1
+    gnn_args:
+        parameters:
+            in_channels:
+                value: 10
+            n_hidden:
+                value: 10
+            out_channels:
+                value: 5
+            gnn_conv:
+                value: GATv2Conv
+            gnn_conv_args:
+                parameters:
+                    heads:
+                        value: 8
+                    concat: 
+                        value: False
+            layers:
+                value: 1
+            dropout:
+                value: 0.1
+    dec_args:
+        parameters:
+            in_channels:
+                value: 5
+            n_hidden:
+                value: 4
+            out_channels:
+                value: 4

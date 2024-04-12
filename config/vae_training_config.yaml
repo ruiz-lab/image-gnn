@@ -1,0 +1,4 @@
+learning_rate: 0.001
+num_epochs: 15
+save_model: False
+loss: torch_vae_loss

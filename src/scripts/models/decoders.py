@@ -52,3 +52,34 @@ class MLPBasicBlock(nn.Module):
         for layer in self.layers:
             out = F.leaky_relu(layer(out))
         return out
+
+class DecoderVAE(nn.Module):
+
+    def __init__(
+        self,
+        latent_size,
+        hidden_size,
+        out_size,
+        layers=1, 
+        activation_fn=nn.ReLU(),
+        **kwargs
+    ):
+        super().__init__()
+
+        self.layers = nn.ModuleList(
+            [
+                nn.Linear(latent_size, hidden_size),
+                *[nn.Linear(hidden_size, hidden_size) for _ in range(layers-2)],
+                nn.Linear(hidden_size, out_size),
+            ]
+        )
+        self.activation_fn = activation_fn
+
+    def forward(self, lat):
+        out = lat
+        for layer in self.layers:
+            out = self.activation_fn(layer(out))
+
+        # out = self.activation_fn(self.layers[-1](out))
+
+        return out
