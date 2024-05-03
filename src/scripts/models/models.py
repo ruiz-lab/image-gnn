@@ -3,8 +3,10 @@ import sys
 import torch
 import torch.nn as nn
 
+from torch_geometric.nn import GATv2Conv
+
 from models.encoders import TemporalEncoder, EncoderVAE
-from models.gnns import NeroStemGNN
+from models.gnns import NeroStemGNN, GNNBasicBlock
 from models.decoders import MLPBasicBlock, DecoderVAE
 
 from typing import List, Dict
@@ -96,21 +98,47 @@ class GNNModel(nn.Module):
 
     @staticmethod
     def pre_init(config, **kwargs):
-        pass
+        return config
 
     def __init__(
         self,
-        in_features=784,
-        hidden_size=256,
-        latent_size=128,
-        out_size=784,
-        layers=2,
+        in_features,
+        hidden_size,
+        out_size,
+        gnn_conv,
+        gnn_conv_args,
+        layers=1,
+        dropout=0.1,
         **kwargs
     ):
         super().__init__()
 
-        self.encoder = EncoderVAE(in_features, hidden_size, latent_size, layers)
-        self.decoder = DecoderVAE(latent_size, hidden_size, out_size, layers)
+        gnn_conv = getattr(sys.modules[__name__], gnn_conv)
+        self.gnn_conv = gnn_conv
+        self.layers = nn.ModuleList(
+            [
+                GNNBasicBlock(
+                    in_features, 
+                    hidden_size, 
+                    gnn_conv, 
+                    gnn_conv_args
+                ),
+                *[
+                    GNNBasicBlock(
+                        hidden_size, 
+                        hidden_size, 
+                        gnn_conv, 
+                        gnn_conv_args
+                    ) for l in range(layers-1)
+                ],
+                nn.Dropout(dropout),
+                gnn_conv(
+                    hidden_size, 
+                    out_size, 
+                    **gnn_conv_args
+                )
+            ]
+        )
 
     def _step(self):
         pass
@@ -119,4 +147,13 @@ class GNNModel(nn.Module):
         pass
 
     def forward(self, batch):
-        pass
+        out = batch.data
+        for layer in self.layers:
+            if isinstance(layer, GNNBasicBlock):
+                out, _ = layer(out, batch.edge_index)
+            elif isinstance(layer, self.gnn_conv):
+                out = layer(out, batch.edge_index)
+            else:
+                out = layer(out)
+
+        return out
