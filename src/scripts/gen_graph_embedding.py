@@ -61,14 +61,18 @@ def main(sys_args, model):
     train_ds_path = ds_path + "/mnist_train_embeddings.npy"
     test_ds_path = ds_path + "/mnist_test_embeddings.npy"
 
-    np_z = z.detach().numpy()    
+    np_z = z.detach().numpy()
+    np_targets = np.expand_dims(train_ds.targets.numpy(), axis=1)
+    np_train = np.append(np_z, np_targets, axis=1)
     with open(Path(train_ds_path), "wb") as f:
-        np.save(f, np_z)
+        np.save(f, np_train)
         f.close()
 
     np_test_z = test_z.detach().numpy()    
+    np_test_targets = np.expand_dims(test_ds.targets.numpy(), axis=1)
+    np_test = np.append(np_test_z, np_test_targets, axis=1)
     with open(Path(test_ds_path), "wb") as f:
-        np.save(f, np_test_z)
+        np.save(f, np_test)
         f.close()
 
 
