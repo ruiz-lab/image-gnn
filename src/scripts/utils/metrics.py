@@ -31,3 +31,6 @@ def torch_vae_loss(x, x_hat):
     beta = 0.5
 
     return reconstruction_loss +  beta * kl_loss
+
+def torch_bce_loss(y, y_hat):
+    return F.cross_entropy(y_hat, y)
