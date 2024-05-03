@@ -1,0 +1,11 @@
+model: GNNModel
+args:
+    in_features: 128
+    hidden_size: 128
+    out_size: 10
+    gnn_conv: GATv2Conv
+    gnn_conv_args:
+        heads: 8
+        concat: False
+    layers: 1
+    dropout: 0.1

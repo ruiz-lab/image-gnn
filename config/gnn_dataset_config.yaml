@@ -1,0 +1,6 @@
+train:
+    dataset_class: MNISTEmbeddedDataset
+    base_dir: data/MNISTEmbeddings/mnist_train_embeddings.npy
+test:
+    dataset_class: MNISTEmbeddedDataset
+    base_dir: data/MNISTEmbeddings/mnist_test_embeddings.npy

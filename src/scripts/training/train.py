@@ -12,11 +12,11 @@ from datetime import datetime
 
 from pathlib import Path
 
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DataLoader, NeighborLoader
 
-from utils.metrics import torch_rmse, torch_vae_loss
+from utils.metrics import torch_rmse, torch_vae_loss, torch_bce_loss
 from data_preproc.datasets import build_datasets
-from models.models import VAEModel
+from models.models import VAEModel, GNNModel
 
 
 class Trainer():
@@ -28,7 +28,7 @@ class Trainer():
         model_config,
         save_model=False
     ):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
         self.train_ds, self.test_ds = build_datasets(dataset_config)
         self.training_config = training_config
         self.model_config = model_config
@@ -48,14 +48,14 @@ class Trainer():
     def train(self):
         train_dl = DataLoader(
             dataset=self.train_ds, 
-            batch_size=100, 
+            batch_size=self.training_config["batch_size"], 
             shuffle=True, 
             num_workers=4
         )
 
         test_dl = DataLoader(
             dataset=self.test_ds,
-            batch_size=100, 
+            batch_size=self.training_config["batch_size"], 
             shuffle=True, 
             num_workers=4
         )
@@ -114,14 +114,14 @@ class Trainer():
     def train_eval(self):
         train_dl = DataLoader(
             dataset=self.train_ds, 
-            batch_size=100, 
+            batch_size=self.training_config["batch_size"], 
             shuffle=True, 
             num_workers=4
         )
 
         test_dl = DataLoader(
             dataset=self.test_ds, 
-            batch_size=100, 
+            batch_size=self.training_config["batch_size"], 
             shuffle=True, 
             num_workers=4
         )
