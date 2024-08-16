@@ -1,0 +1,6 @@
+model: MLPModel
+args:
+    in_features: 128
+    hidden_size: 64
+    out_size: 10
+    layers: 2

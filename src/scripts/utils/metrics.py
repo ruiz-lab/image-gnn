@@ -25,12 +25,14 @@ def torch_kl_div(mu, logvar):
 def torch_vae_loss(x, x_hat):
     output, mu, logvar, _ = x_hat
 
-    reconstruction_loss = F.mse_loss(output, x, reduction="sum")
+    # reconstruction_loss = F.mse_loss(output, x, reduction="sum")
+    reconstruction_loss = F.mse_loss(output, x, reduction="none")
+    reconstruction_loss = reconstruction_loss.sum([1, 2, 3]).mean([0])
     kl_loss = torch_kl_div(mu, logvar)
 
-    beta = 0.5
+    beta = 0.0005
 
     return reconstruction_loss +  beta * kl_loss
 
-def torch_bce_loss(y, y_hat):
+def torch_ce_loss(y, y_hat):
     return F.cross_entropy(y_hat, y)

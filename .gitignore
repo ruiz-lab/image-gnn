@@ -14,6 +14,7 @@ logs/**
 .vscode/
 .env/
 wandb/
+analysis/
 
 # Distribution / packaging
 .Python
