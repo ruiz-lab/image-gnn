@@ -1,6 +1,6 @@
 train:
-    dataset_class: MNISTEmbeddedDataset
-    base_dir: data/MNISTEmbeddings/mnist_train_embeddings.npy
+    dataset_class: CIFAR10EmbeddedDataset
+    base_dir: data/CIFAR10Embeddings/cifar10_train_embeddings.npy
 test:
-    dataset_class: MNISTEmbeddedDataset
-    base_dir: data/MNISTEmbeddings/mnist_test_embeddings.npy
+    dataset_class: CIFAR10EmbeddedDataset
+    base_dir: data/CIFAR10Embeddings/cifar10_test_embeddings.npy

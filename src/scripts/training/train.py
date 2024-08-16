@@ -137,7 +137,8 @@ class Trainer():
         model = model(**model.pre_init(self.model_config["args"])).to(self.device)
 
         loss = getattr(sys.modules[__name__], self.training_config["loss"])
-        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr, weight_decay=0)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=100, min_lr=1e-6)
 
         train_losses = []
         for epoch in tqdm(range(epochs)):
