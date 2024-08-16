@@ -59,7 +59,7 @@ def main():
     trainer.train()
 
 if __name__ == "__main__":
-    sweep_id = "qk3zqvni"
+    sweep_id = "x4kvqbno"
     wandb.agent(
         sweep_id=sweep_id,
         function=main,
