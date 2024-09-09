@@ -1,8 +1,0 @@
-train:
-    dataset_class: CIFAR10Dataset
-    base_dir: data/
-    train: True
-test:
-    dataset_class: CIFAR10Dataset
-    base_dir: data/
-    train: False

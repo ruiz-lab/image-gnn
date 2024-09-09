@@ -1,8 +1,0 @@
-model: CNNVAEModel
-args:
-    in_features: 784
-    in_channels: 3
-    hidden_size: 64
-    latent_size: 256
-    layers: 2
-    blocks: [3, 3, 1]

@@ -1,5 +1,0 @@
-learning_rate: 0.00001
-batch_size: 64
-num_epochs: 500
-save_model: True
-loss: torch_vae_loss

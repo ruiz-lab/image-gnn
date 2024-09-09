@@ -1,5 +1,0 @@
-model: VAEModel
-args:
-    in_features: 784
-    hidden_size: 256
-    layers: 2
