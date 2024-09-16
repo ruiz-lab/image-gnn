@@ -53,55 +53,13 @@ class MNISTDataset(MNIST):
     def __len__(self):
         return super().__len__()
 
-class MNISTFullDataset(Dataset):
-    def __init__( self, root="data/", train=True, **kwargs):
-        super().__init__()
-
-        if train:
-            train_ds = MNIST(root, train=True, download=True)
-            test_ds = MNIST(root, train=False, download=True)
-            datasets = [train_ds, test_ds]
-        else:
-            test_ds = MNIST(root, train=False, download=True)
-            datasets = [test_ds]
-
-        self.transform = Compose([ToTensor()])
-
-        self._load_data(datasets)
-
-    def _load_data(self, datasets):
-        data = torch.empty((1, 28, 28), dtype=torch.uint8)
-        targets = torch.empty((1,), dtype=torch.uint8)
-        for ds in datasets:
-            data = torch.concat((data, ds.data), 0)
-            targets = torch.concat((targets, ds.targets))
-
-        self.data = data[1:, :]
-        self.targets = targets[1:]
-
-    def __getitem__(self, index):
-        img = self.data[index]
-
-        img = Image.fromarray(img.numpy(), mode="L")
-
-        if self.transform is not None:
-            img = self.transform(img)
-
-        data = Data()
-        data.x = torch.flatten(img, start_dim=1)
-        data.y = torch.flatten(img, start_dim=1)
-
-        return data
-
-    def __len__(self):
-        return len(self.data)
-
 class MNISTEmbeddedDataset(Dataset):
     def __init__(
         self, 
         base_dir,
         ker_width=10,
         graph_connectivity="fully_connected",
+        sample_size=5,
         **kwargs
     ):
         super().__init__()
@@ -109,12 +67,14 @@ class MNISTEmbeddedDataset(Dataset):
         self.base_dir = base_dir
         self.kernel_width = ker_width
         self.graph_connectivity = graph_connectivity
+        self.sample_size = sample_size
+        self.graph_exec = kwargs["graph_exec"]
         self.data = self._get_data()
 
     def _get_data(self):
         return np.load(Path(self.base_dir))
 
-    def _build_graph(self, data, graph_connectivity, index, sample_size=100):
+    def _build_graph(self, index, data, graph_connectivity, sample_size):
         graph_data = Data()
 
         pop_size = data.shape[0]
@@ -149,12 +109,24 @@ class MNISTEmbeddedDataset(Dataset):
 
         return graph_data
 
+    def _build_set(self, data, index):
+        set_data = Data()
+
+        set_data.data = torch.tensor(data[index, :-1], dtype=torch.float32)[None, ...]
+        set_data.y = torch.tensor(data[index, -1], dtype=torch.int64)
+
+        return set_data
+
     def __getitem__(self, index):
-        return self._build_graph(
-            self.data, 
-            self.graph_connectivity, 
-            index
-        )
+        if self.graph_exec:
+            return self._build_graph(
+                index,
+                self.data, 
+                self.graph_connectivity, 
+                self.sample_size
+            )
+        else:
+            return self._build_set(self.data, index)
 
     def __len__(self):
         return len(self.data)
@@ -189,55 +161,13 @@ class CIFAR10Dataset(CIFAR10):
     def __len__(self):
         return super().__len__()
 
-class CIFAR10FullDataset(Dataset):
-    def __init__( self, root="data/", train=True, **kwargs):
-        super().__init__()
-
-        if train:
-            train_ds = CIFAR10(root, train=True, download=True)
-            test_ds = CIFAR10(root, train=False, download=True)
-            datasets = [train_ds, test_ds]
-        else:
-            test_ds = CIFAR10(root, train=False, download=True)
-            datasets = [test_ds]
-
-        self.transform = Compose([ToTensor()])
-
-        self._load_data(datasets)
-
-    def _load_data(self, datasets):
-        data = torch.empty((1, 28, 28), dtype=torch.uint8)
-        targets = torch.empty((1,), dtype=torch.uint8)
-        for ds in datasets:
-            data = torch.concat((data, ds.data), 0)
-            targets = torch.concat((targets, ds.targets))
-
-        self.data = data[1:, :]
-        self.targets = targets[1:]
-
-    def __getitem__(self, index):
-        img = self.data[index]
-
-        img = Image.fromarray(img.numpy(), mode="L")
-
-        if self.transform is not None:
-            img = self.transform(img)
-
-        data = Data()
-        data.x = torch.flatten(img, start_dim=1)
-        data.y = torch.flatten(img, start_dim=1)
-
-        return data
-
-    def __len__(self):
-        return len(self.data)
-
 class CIFAR10EmbeddedDataset(Dataset):
     def __init__(
         self, 
         base_dir,
         ker_width=10,
         graph_connectivity="fully_connected",
+        sample_size=5,
         **kwargs
     ):
         super().__init__()
@@ -245,6 +175,8 @@ class CIFAR10EmbeddedDataset(Dataset):
         self.base_dir = base_dir
         self.kernel_width = ker_width
         self.graph_connectivity = graph_connectivity
+        self.sample_size = sample_size
+        self.graph_exec = kwargs["graph_exec"]
         self.data = self._get_data()
         self.mean = torch.tensor(self.data[..., :-1], dtype=torch.float32).mean(dim=0)
         self.std = torch.tensor(self.data[..., :-1], dtype=torch.float32).std(dim=0)
@@ -252,7 +184,7 @@ class CIFAR10EmbeddedDataset(Dataset):
     def _get_data(self):
         return np.load(Path(self.base_dir))
 
-    def _build_graph(self, data, graph_connectivity, index, sample_size=100):
+    def _build_graph(self, index, data, graph_connectivity, sample_size):
         graph_data = Data()
 
         pop_size = data.shape[0]
@@ -272,6 +204,7 @@ class CIFAR10EmbeddedDataset(Dataset):
         graph_data.edge_weights = torch.flatten(
             torch.exp(- d_e / (self.kernel_width ** 2))
         )[:, None]
+
         graph_data.edge_weights[graph_data.edge_weights < 0.3] = 0.0
 
         graph_data.data = (graph_data.data - self.mean) / self.std
@@ -290,12 +223,25 @@ class CIFAR10EmbeddedDataset(Dataset):
 
         return graph_data
 
+    def _build_set(self, data, index):
+        set_data = Data()
+
+        set_data.data = torch.tensor(data[index, :-1], dtype=torch.float32)[None, ...]
+        set_data.data = (set_data.data - self.mean) / self.std
+        set_data.y = torch.tensor(data[index, -1], dtype=torch.int64)
+
+        return set_data
+
     def __getitem__(self, index):
-        return self._build_graph(
-            self.data, 
-            self.graph_connectivity, 
-            index
-        )
+        if self.graph_exec:
+            return self._build_graph(
+                index,
+                self.data, 
+                self.graph_connectivity, 
+                self.sample_size
+            )
+        else:
+            return self._build_set(self.data, index)
 
     def __len__(self):
         return len(self.data)
