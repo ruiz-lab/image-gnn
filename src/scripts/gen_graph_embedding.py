@@ -60,13 +60,13 @@ def main(sys_args, model):
     with torch.no_grad():
         for _, train_batch in tqdm(enumerate(train_dl)):
             output, mu, logvar, z = model(train_batch)
-        mu = mu.flatten(start_dim=1)
+        # mu = mu.flatten(start_dim=1)
 
         for _, test_batch in tqdm(enumerate(test_dl)):
             test_output, test_mu, test_logvar, test_z = model(test_batch)
-        test_mu = test_mu.flatten(start_dim=1)
+        # test_mu = test_mu.flatten(start_dim=1)
 
-    ds_path = "data/CIFAR10Embeddings"
+    ds_path = "data/CIFAR10Embeddings-2"
     train_ds_path = ds_path + "/cifar10_train_embeddings.npy"
     test_ds_path = ds_path + "/cifar10_test_embeddings.npy"
 
@@ -87,7 +87,7 @@ def main(sys_args, model):
 
 if __name__ == "__main__":
     path = "src/scripts/checkpoints/"
-    model_id = "080224-180726-58.pt"
+    model_id = "091124-031956-57.pt"
     model_path = path + model_id
 
     model = CNNVAEModel()

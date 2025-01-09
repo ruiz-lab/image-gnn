@@ -61,10 +61,13 @@ class EncoderCNNVAE(nn.Module):
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 nn.Conv2d(128, 256, kernel_size=1),
                 *[ConvBasicBlock(256, 256) for _ in range(blocks[2])],
+                nn.Flatten()
             ]
         )
-        self.mean_layer = nn.Linear(256, latent_size)
-        self.var_layer = nn.Linear(256, latent_size)
+        # self.mean_layer = nn.Linear(256, latent_size)
+        # self.var_layer = nn.Linear(256, latent_size)
+        self.mean_layer = nn.Linear(256 * 16, latent_size)
+        self.var_layer = nn.Linear(256 * 16, latent_size)
         self.activation_fn = activation_fn
 
     def forward(self, x):
@@ -72,21 +75,30 @@ class EncoderCNNVAE(nn.Module):
         for layer in self.layers:
             out = self.activation_fn(layer(out))
 
+        # mean = self.activation_fn(
+        #     self.mean_layer(
+        #         torch.permute(out, (0, 2, 3, 1))
+        #     )
+        # )
+        # logvar = self.activation_fn(
+        #     self.var_layer(
+        #         torch.permute(out, (0, 2, 3, 1))
+        #     )
+        # )
+
+        # return (
+        #     torch.permute(mean, (0, 3, 1, 2)), 
+        #     torch.permute(logvar, (0, 3, 1, 2))
+        # )
+
         mean = self.activation_fn(
-            self.mean_layer(
-                torch.permute(out, (0, 2, 3, 1))
-            )
+            self.mean_layer(out)
         )
         logvar = self.activation_fn(
-            self.var_layer(
-                torch.permute(out, (0, 2, 3, 1))
-            )
+            self.var_layer(out)
         )
 
-        return (
-            torch.permute(mean, (0, 3, 1, 2)), 
-            torch.permute(logvar, (0, 3, 1, 2))
-        )
+        return mean, logvar
 
 class ConvBasicBlock(nn.Module):
 

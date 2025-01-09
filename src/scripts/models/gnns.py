@@ -95,9 +95,11 @@ class GNNBasicBlock(nn.Module):
             else:
                 out = layer(out)
 
-        # if self.res_connect:
-        #     out = out + x
+        if self.res_connect:
+            out = out + x
 
-        out = F.leaky_relu(out)
+        out = F.relu(out)
+
+        # out = F.dropout(out, p=0.2)
 
         return out, attention_weights

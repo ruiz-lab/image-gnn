@@ -3,6 +3,8 @@ import sys
 import torch
 import torch.nn as nn
 
+import torch.nn.functional as F
+
 from torch_geometric.nn import GATv2Conv, GATConv, GCNConv, GatedGraphConv
 
 from models.encoders import EncoderVAE, EncoderCNNVAE, EncoderMLP
@@ -111,7 +113,7 @@ class CNNVAEModel(nn.Module):
     def __init__(
         self,
         in_channels=3,
-        latent_size=256,
+        latent_size=384,
         blocks=[3, 3, 1],
         **kwargs
     ):
@@ -169,6 +171,7 @@ class GNNModel(nn.Module):
         self.gnn_conv = gnn_conv
         self.layers = nn.ModuleList(
             [
+                # nn.Linear(in_features, hidden_size),
                 GNNBasicBlock(
                     in_features, 
                     hidden_size, 
@@ -186,11 +189,10 @@ class GNNModel(nn.Module):
                     ) for l in range(layers-1)
                 ],
                 # nn.Dropout(dropout),
-                gnn_conv(
-                    in_channels=hidden_size,
-                    out_channels=out_size, 
-                    **gnn_conv_args
-                ),
+                nn.Linear(hidden_size, hidden_size // 2),
+                nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_size // 2, out_size)
             ]
         )
 
@@ -214,8 +216,6 @@ class GNNModel(nn.Module):
             }
         else:
             conv_fwd_args = {}
-
-        conv_fwd_args = {}
 
         for layer in self.layers:
             if isinstance(layer, GNNBasicBlock):
@@ -248,8 +248,12 @@ class MLPModel(nn.Module):
     ):
         super().__init__()
 
-        self.encoder = EncoderMLP(in_features, hidden_size, layers)
-        self.decoder = DecoderMLP(hidden_size, out_size, layers)
+        self.layers = nn.ModuleList([
+            nn.Linear(in_features, hidden_size),
+            *[nn.Linear(hidden_size, hidden_size) for _ in range(layers-1)],
+            nn.Linear(hidden_size, out_size)
+        ])
+        self.activation_fn = nn.ReLU()
 
     def _step(self):
         pass
@@ -258,8 +262,11 @@ class MLPModel(nn.Module):
         pass
 
     def forward(self, batch):
-        out = self.encoder(batch.data)
+        out = batch.data
 
-        y_hat = self.decoder(out)
+        for layer in self.layers:
+            out = self.activation_fn(layer(out))
+
+        y_hat = out
 
         return y_hat

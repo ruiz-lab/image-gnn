@@ -5,6 +5,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import jax
+import jax.numpy as jnp
+
 from PIL import Image
 
 from torch.utils.data import Dataset
@@ -20,6 +23,7 @@ from dataclasses import dataclass, field
 
 from typing import List, Dict
 
+_ = jnp.ones((1, 1))
 
 def build_datasets(ds_config):
     datasets  = []
@@ -111,6 +115,21 @@ class MNISTEmbeddedDataset(Dataset):
         self.graph_connectivity = graph_connectivity
         self.data = self._get_data()
 
+        @jax.jit
+        def compute_edge_weight_jax(data):
+            X_i = data[:, None, :]
+            X_j = data[None, :, :]
+
+            d_e = ((X_i - X_j) ** 2).sum(-1)
+
+            edge_weights = jnp.ravel(
+                jnp.exp(- d_e / (10 ** 2))
+            )[:, None]
+
+            return edge_weights
+
+        self.compute_edge_weight_jax = compute_edge_weight_jax
+
     def _get_data(self):
         return np.load(Path(self.base_dir))
 
@@ -149,8 +168,41 @@ class MNISTEmbeddedDataset(Dataset):
 
         return graph_data
 
+    def _build_graph_jax(self, data, graph_connectivity, index, sample_size=100):
+        graph_data = Data()
+
+        pop_size = data.shape[0]
+        idx_prob = [1 / (pop_size - 1)] * pop_size
+        idx_prob[index] = 0
+        idx_sample = np.random.choice(pop_size, sample_size-1, replace=False, p=idx_prob)
+        idx_sample = np.append(idx_sample, index)
+
+        graph_data.data = torch.tensor(data[idx_sample, :-1], dtype=torch.float32)
+        graph_data.y = torch.tensor(data[idx_sample, -1], dtype=torch.int64)
+        graph_data.num_nodes = graph_data.data.shape[0]
+
+        edge_weights_jax = self.compute_edge_weight_jax(
+            jnp.asarray(data[idx_sample, :-1])
+        )
+        graph_data.edge_weights = torch.from_numpy(np.array(edge_weights_jax))
+
+        if graph_connectivity == "fully_connected":
+            graph_data.edge_index = torch.from_numpy(
+                np.array(
+                    list(
+                        product(
+                            range(graph_data.num_nodes), 
+                            range(graph_data.num_nodes)
+                        )
+                    )
+                ).T
+            ).to(torch.int64)
+
+        return graph_data
+
+
     def __getitem__(self, index):
-        return self._build_graph(
+        return self._build_graph_jax(
             self.data, 
             self.graph_connectivity, 
             index
@@ -249,6 +301,22 @@ class CIFAR10EmbeddedDataset(Dataset):
         self.mean = torch.tensor(self.data[..., :-1], dtype=torch.float32).mean(dim=0)
         self.std = torch.tensor(self.data[..., :-1], dtype=torch.float32).std(dim=0)
 
+        @jax.jit
+        def compute_edge_weight_jax(data):
+            X_i = data[:, None, :]
+            X_j = data[None, :, :]
+
+            d_e = ((X_i - X_j) ** 2).sum(-1)
+
+            edge_weights = jnp.ravel(
+                jnp.exp(- d_e / (10 ** 2))
+            )[:, None]
+
+            return edge_weights
+
+        self.compute_edge_weight_jax = compute_edge_weight_jax
+
+
     def _get_data(self):
         return np.load(Path(self.base_dir))
 
@@ -290,8 +358,44 @@ class CIFAR10EmbeddedDataset(Dataset):
 
         return graph_data
 
+    def _build_graph_jax(self, data, graph_connectivity, index, sample_size=100):
+        graph_data = Data()
+
+        pop_size = data.shape[0]
+        idx_prob = [1 / (pop_size - 1)] * pop_size
+        idx_prob[index] = 0
+        idx_sample = np.random.choice(pop_size, sample_size-1, replace=False, p=idx_prob)
+        idx_sample = np.append(idx_sample, index)
+
+        graph_data.data = torch.tensor(data[idx_sample, :-1], dtype=torch.float32)
+        graph_data.y = torch.tensor(data[idx_sample, -1], dtype=torch.int64)
+        graph_data.num_nodes = graph_data.data.shape[0]
+
+        edge_weights_jax = self.compute_edge_weight_jax(
+            jnp.asarray(data[idx_sample, :-1])
+        )
+        graph_data.edge_weights = torch.from_numpy(np.array(edge_weights_jax))
+        graph_data.edge_weights[graph_data.edge_weights < 0.3] = 0.0
+
+        graph_data.data = (graph_data.data - self.mean) / self.std
+
+        if graph_connectivity == "fully_connected":
+            graph_data.edge_index = torch.from_numpy(
+                np.array(
+                    list(
+                        product(
+                            range(graph_data.num_nodes), 
+                            range(graph_data.num_nodes)
+                        )
+                    )
+                ).T
+            ).to(torch.int64)
+
+        return graph_data
+
+
     def __getitem__(self, index):
-        return self._build_graph(
+        return self._build_graph_jax(
             self.data, 
             self.graph_connectivity, 
             index

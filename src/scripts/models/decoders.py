@@ -93,10 +93,14 @@ class DecoderCNNVAE(nn.Module):
         **kwargs
     ):
         super().__init__()
-
+        self.linear = nn.Sequential(
+                nn.Linear(latent_size, 256 * 16),
+                activation_fn,
+        )
         self.layers = nn.ModuleList(
             [
-                nn.ConvTranspose2d(latent_size, 256, kernel_size=2, stride=2),
+                # nn.ConvTranspose2d(latent_size, 256, kernel_size=2, stride=2),
+                nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2),
                 # nn.ConvTranspose2d(latent_size, 256, kernel_size=3, stride=2, padding=1, output_padding=1),
                 *[DeConvBasicBlock(256, 256) for _ in range(blocks[0])],
                 nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2),
@@ -114,6 +118,8 @@ class DecoderCNNVAE(nn.Module):
 
     def forward(self, lat):
         out = lat
+        out = self.linear(out)
+        out = out.reshape(out.shape[0], -1, 4, 4)
         for layer in self.layers[:-1]:
             out = self.activation_fn(layer(out))
 

@@ -15,6 +15,8 @@ logs/**
 .env/
 wandb/
 analysis/
+checkpoints/
+recon_images/
 
 # Distribution / packaging
 .Python
