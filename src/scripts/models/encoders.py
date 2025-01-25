@@ -61,32 +61,156 @@ class EncoderCNNVAE(nn.Module):
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 nn.Conv2d(128, 256, kernel_size=1),
                 *[ConvBasicBlock(256, 256) for _ in range(blocks[2])],
+
+                # nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding=1),
+                # nn.GELU(),
+                # nn.Conv2d(32, 32, kernel_size=3, padding=1),
+                # nn.GELU(),
+                # nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+                # nn.GELU(),
+                # nn.Conv2d(64, 64, kernel_size=3, padding=1),
+                # nn.GELU(),
+                # nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1),
+                # nn.GELU(),
+
+                # nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+                # nn.Conv2d(256, 512, kernel_size=1),
+                # *[ConvBasicBlock(512, 512) for _ in range(blocks[2])],
+
+                # # nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+                # # nn.Conv2d(512, 512, kernel_size=1),
+                # # *[ConvBasicBlock(512, 512) for _ in range(blocks[2])],
+
+
+                nn.Flatten(),
+                # nn.Linear(64 * 16, latent_size),
+                # nn.GELU()
             ]
         )
-        self.mean_layer = nn.Linear(256, latent_size)
-        self.var_layer = nn.Linear(256, latent_size)
+        self.mean_layer = nn.Linear(256 * 16, latent_size)
+        self.var_layer = nn.Linear(256 * 16, latent_size)
+        # self.mean_layer = nn.Linear(latent_size, latent_size)
+        # self.var_layer = nn.Linear(latent_size, latent_size)
         self.activation_fn = activation_fn
 
     def forward(self, x):
         out  = x
         for layer in self.layers:
             out = self.activation_fn(layer(out))
+            # out = layer(out)
+
+        # mean = self.activation_fn(
+        #     self.mean_layer(
+        #         torch.permute(out, (0, 2, 3, 1))
+        #     )
+        # )
+        # logvar = self.activation_fn(
+        #     self.var_layer(
+        #         torch.permute(out, (0, 2, 3, 1))
+        #     )
+        # )
+
+        # return (
+        #     torch.permute(mean, (0, 3, 1, 2)), 
+        #     torch.permute(logvar, (0, 3, 1, 2))
+        # )
 
         mean = self.activation_fn(
-            self.mean_layer(
-                torch.permute(out, (0, 2, 3, 1))
-            )
+            self.mean_layer(out)
         )
         logvar = self.activation_fn(
-            self.var_layer(
-                torch.permute(out, (0, 2, 3, 1))
-            )
+            self.var_layer(out)
         )
 
-        return (
-            torch.permute(mean, (0, 3, 1, 2)), 
-            torch.permute(logvar, (0, 3, 1, 2))
+        return mean, logvar
+
+
+class EncoderVQVAE(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        num_hiddens,
+        num_downsampling_layers,
+        num_residual_layers,
+        num_residual_hiddens,
+    ):
+        super().__init__()
+        # See Section 4.1 of "Neural Discrete Representation Learning".
+        # The last ReLU from the Sonnet example is omitted because ResidualStack starts
+        # off with a ReLU.
+        conv = nn.Sequential()
+        for downsampling_layer in range(num_downsampling_layers):
+            if downsampling_layer == 0:
+                out_channels = num_hiddens // 2
+            elif downsampling_layer == 1:
+                (in_channels, out_channels) = (num_hiddens // 2, num_hiddens)
+
+            else:
+                (in_channels, out_channels) = (num_hiddens, num_hiddens)
+
+            conv.add_module(
+                f"down{downsampling_layer}",
+                nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=4,
+                    stride=2,
+                    padding=1,
+                ),
+            )
+            conv.add_module(f"relu{downsampling_layer}", nn.ReLU())
+
+        conv.add_module(
+            "final_conv",
+            nn.Conv2d(
+                in_channels=num_hiddens,
+                out_channels=num_hiddens,
+                kernel_size=3,
+                padding=1,
+            ),
         )
+        self.conv = conv
+        self.residual_stack = ResidualStack(
+            num_hiddens, num_residual_layers, num_residual_hiddens
+        )
+
+    def forward(self, x):
+        h = self.conv(x)
+        return self.residual_stack(h)
+
+class ResidualStack(nn.Module):
+    def __init__(self, num_hiddens, num_residual_layers, num_residual_hiddens):
+        super().__init__()
+        # See Section 4.1 of "Neural Discrete Representation Learning".
+        layers = []
+        for i in range(num_residual_layers):
+            layers.append(
+                nn.Sequential(
+                    nn.ReLU(),
+                    nn.Conv2d(
+                        in_channels=num_hiddens,
+                        out_channels=num_residual_hiddens,
+                        kernel_size=3,
+                        padding=1,
+                    ),
+                    nn.ReLU(),
+                    nn.Conv2d(
+                        in_channels=num_residual_hiddens,
+                        out_channels=num_hiddens,
+                        kernel_size=1,
+                    ),
+                )
+            )
+
+        self.layers = nn.ModuleList(layers)
+
+    def forward(self, x):
+        h = x
+        for layer in self.layers:
+            h = h + layer(h)
+
+        # ResNet V1-style.
+        return torch.relu(h)
 
 class ConvBasicBlock(nn.Module):
 

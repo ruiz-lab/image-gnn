@@ -14,9 +14,9 @@ from pathlib import Path
 
 from torch_geometric.loader import DataLoader
 
-from utils.metrics import torch_rmse, torch_vae_loss, torch_ce_loss
+from utils.metrics import torch_rmse, torch_vae_loss, torch_vqvae_loss, torch_ce_loss
 from data_preproc.datasets import build_datasets
-from models.models import VAEModel, CNNVAEModel, GNNModel, MLPModel
+from models.models import VAEModel, CNNVAEModel, VQVAEModel, GNNModel, MLPModel
 
 
 class Trainer():
@@ -28,7 +28,7 @@ class Trainer():
         model_config,
         save_model=False
     ):
-        self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.train_ds, self.test_ds = build_datasets(dataset_config)
         self.training_config = training_config
         self.model_config = model_config
@@ -116,27 +116,28 @@ class Trainer():
             dataset=self.train_ds, 
             batch_size=self.training_config["batch_size"], 
             shuffle=True, 
-            num_workers=4
+            num_workers=8
         )
 
         test_dl = DataLoader(
             dataset=self.test_ds,
             batch_size=self.training_config["batch_size"], 
             shuffle=True, 
-            num_workers=4
+            num_workers=8
         )
 
         lr = self.training_config["learning_rate"]
         epochs = self.training_config["num_epochs"] 
 
-        for _ in range(50):
-            run = wandb.init(project="GNN-image-gnn_train", reinit=True)
+        for _ in range(10):
+            run = wandb.init(project="GNN-image-gnn_train-CIFAR10-2", reinit=True)
 
             model : nn.Module = getattr(sys.modules[__name__], self.model_config["model"])
             model = model(**model.pre_init(self.model_config["args"])).to(self.device)
 
             loss = getattr(sys.modules[__name__], self.training_config["loss"])
-            optimizer = torch.optim.Adam(params=model.parameters(), lr=lr)
+            optimizer = torch.optim.Adam(params=model.parameters(), lr=lr, weight_decay=1e-3)
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=50, min_lr=1e-6)
 
             for epoch in tqdm(range(epochs)):
                 test_losses = []
@@ -184,23 +185,25 @@ class Trainer():
                     "test_loss": test_loss,
                     "train_loss": train_loss,
                     "test_acc": test_acc,
-                    "train_acc": train_acc
+                    "train_acc": train_acc,
+                    "sample_size": self.train_ds.sample_size
                 })
 
+                scheduler.step(test_loss)
 
     def train_eval(self):
         train_dl = DataLoader(
             dataset=self.train_ds, 
             batch_size=self.training_config["batch_size"], 
             shuffle=True, 
-            num_workers=4
+            num_workers=32
         )
 
         test_dl = DataLoader(
             dataset=self.test_ds, 
             batch_size=self.training_config["batch_size"], 
             shuffle=True, 
-            num_workers=4
+            num_workers=32
         )
 
         num_samples = len(self.train_ds)
@@ -212,14 +215,18 @@ class Trainer():
 
         model : nn.Module = getattr(sys.modules[__name__], self.model_config["model"])
         model = model(**model.pre_init(self.model_config["args"])).to(self.device)
+        print(type(self.train_ds))
+        print(model)
 
         loss = getattr(sys.modules[__name__], self.training_config["loss"])
-        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr, weight_decay=0)
+        optimizer = torch.optim.Adam(params=model.parameters(), lr=lr, weight_decay=1e-3)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=50, min_lr=1e-6)
 
         train_losses = []
         for epoch in tqdm(range(epochs)):
             test_losses = []
+            train_acc = []
+            test_acc = []
 
             for i, train_batch in enumerate(train_dl):
                 batch = train_batch.to(self.device)
@@ -229,7 +236,7 @@ class Trainer():
 
                 # Compute loss
                 J = loss(batch.y, y_hat)
-                # acc = 100 * (sum(batch.y.detach() == torch.max(y_hat, axis=1).indices.detach()) / batch.y.detach().shape[0]).item()
+                train_acc.append(100 * (sum(batch.y.detach() == torch.max(y_hat, axis=1).indices.detach()) / batch.y.detach().shape[0]).item())
 
                 # Backward pass
                 J.backward()
@@ -255,14 +262,15 @@ class Trainer():
 
                     # Compute val loss
                     J = loss(batch.y, y_val)
-                    # acc = 100 * (sum(batch.y.detach() == torch.max(y_val, axis=1).indices.detach()) / batch.y.detach().shape[0]).item()
+                    test_acc.append(100 * (sum(batch.y.detach() == torch.max(y_val, axis=1).indices.detach()) / batch.y.detach().shape[0]).item())
 
                     test_losses.append(J.cpu().numpy())
 
                 print(f"Test Loss: {np.mean(test_losses)}")
-                # print(f"{acc:.2f}%")
+                print(f"Test Acc: {np.mean(test_acc):.2f}%")
+                print(f"Train Acc: {np.mean(train_acc):.2f}%")                
 
-            scheduler.step(np.mean(test_losses))            
+            # scheduler.step(np.mean(test_losses))            
 
         # print(f"{acc:.2f}%")
         if save_model:
