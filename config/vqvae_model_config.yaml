@@ -1,0 +1,14 @@
+model: VQVAEModel
+args:
+    in_channels: 3
+    num_hiddens: 128
+    num_downsampling_layers: 3
+    num_residual_layers: 2
+    num_residual_hiddens: 32
+    embedding_dim: 64
+    num_embeddings: 512
+    use_ema: True
+    decay: 0.99
+    epsilon: 0.00001
+    layers: 2
+    blocks: [3, 3, 1]

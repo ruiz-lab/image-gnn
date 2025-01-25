@@ -1,14 +1,17 @@
 train:
-    # dataset_class: CIFAR10EmbeddedDataset
-    # dataset_class: MNISTEmbeddedDataset
     dataset_class: EmbeddedDataset
-    base_dir: data/CIFAR10Embeddings/cifar10_train_embeddings.npy
-    # base_dir: data/MNISTEmbeddings/mnist_train_embeddings.npy
-    graph_exec: True
+    # base_dir: data/CIFAR10Embeddings/source_data/cifar10_train_embeddings.npy
+    # base_dir: data/CIFAR10Embeddings-2/smsl_embeddings/cifar10_smsl_train_embeddings.npy
+    # base_dir: data/MNISTEmbeddings/smsl_embeddings/mnist_smsl_train_embeddings.npy
+    base_dir: data/FMNISTEmbeddings/smsl_embeddings/fmnist_smsl_train_embeddings.npy
+    train: True
+    smsl_setting: True
 test:
-    # dataset_class: CIFAR10EmbeddedDataset
-    # dataset_class: MNISTEmbeddedDataset
     dataset_class: EmbeddedDataset
-    base_dir: data/CIFAR10Embeddings/cifar10_test_embeddings.npy
-    # base_dir: data/MNISTEmbeddings/mnist_test_embeddings.npy
-    graph_exec: True
+    # base_dir: data/CIFAR10Embeddings/source_data/cifar10_test_embeddings.npy
+    # base_dir: data/CIFAR10Embeddings-2/smsl_embeddings/cifar10_smsl_test_embeddings.npy
+    # base_dir: data/MNISTEmbeddings/smsl_embeddings/mnist_smsl_test_embeddings.npy
+    base_dir: data/FMNISTEmbeddings/smsl_embeddings/fmnist_smsl_test_embeddings.npy
+    train: False
+    smsl_setting: True
+

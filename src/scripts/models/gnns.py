@@ -98,7 +98,7 @@ class GNNBasicBlock(nn.Module):
         if self.res_connect:
             out = out + x
 
-        out = F.relu(out)
+        out = F.leaky_relu(out)
 
         # out = F.dropout(out, p=0.2)
 

@@ -3,4 +3,4 @@ args:
     in_features: 4096
     hidden_size: 128
     out_size: 10
-    layers: 4
+    layers: 3

@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from pathlib import Path
 
-from models.models import VAEModel, CNNVAEModel
+from models.models import VAEModel, CNNVAEModel, VQVAEModel
 from data_preproc.datasets import build_datasets
 
 from torch_geometric.loader import DataLoader
@@ -59,11 +59,11 @@ def main(sys_args, model):
 
     with torch.no_grad():
         for _, train_batch in tqdm(enumerate(train_dl)):
-            output, mu, logvar, z = model(train_batch)
+            output, mu, logvar, *z = model(train_batch)
         # mu = mu.flatten(start_dim=1)
 
         for _, test_batch in tqdm(enumerate(test_dl)):
-            test_output, test_mu, test_logvar, test_z = model(test_batch)
+            test_output, test_mu, test_logvar, *test_z = model(test_batch)
         # test_mu = test_mu.flatten(start_dim=1)
 
     ds_path = "data/CIFAR10Embeddings-2"

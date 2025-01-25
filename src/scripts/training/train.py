@@ -14,9 +14,9 @@ from pathlib import Path
 
 from torch_geometric.loader import DataLoader
 
-from utils.metrics import torch_rmse, torch_vae_loss, torch_ce_loss
+from utils.metrics import torch_rmse, torch_vae_loss, torch_vqvae_loss, torch_ce_loss
 from data_preproc.datasets import build_datasets
-from models.models import VAEModel, CNNVAEModel, GNNModel, MLPModel
+from models.models import VAEModel, CNNVAEModel, VQVAEModel, GNNModel, MLPModel
 
 
 class Trainer():
@@ -196,14 +196,14 @@ class Trainer():
             dataset=self.train_ds, 
             batch_size=self.training_config["batch_size"], 
             shuffle=True, 
-            # num_workers=4
+            num_workers=32
         )
 
         test_dl = DataLoader(
             dataset=self.test_ds, 
             batch_size=self.training_config["batch_size"], 
             shuffle=True, 
-            # num_workers=4
+            num_workers=32
         )
 
         num_samples = len(self.train_ds)
@@ -215,6 +215,8 @@ class Trainer():
 
         model : nn.Module = getattr(sys.modules[__name__], self.model_config["model"])
         model = model(**model.pre_init(self.model_config["args"])).to(self.device)
+        print(type(self.train_ds))
+        print(model)
 
         loss = getattr(sys.modules[__name__], self.training_config["loss"])
         optimizer = torch.optim.Adam(params=model.parameters(), lr=lr, weight_decay=1e-3)
@@ -268,7 +270,7 @@ class Trainer():
                 print(f"Test Acc: {np.mean(test_acc):.2f}%")
                 print(f"Train Acc: {np.mean(train_acc):.2f}%")                
 
-            scheduler.step(np.mean(test_losses))            
+            # scheduler.step(np.mean(test_losses))            
 
         # print(f"{acc:.2f}%")
         if save_model:
