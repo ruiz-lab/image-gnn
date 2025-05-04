@@ -1,0 +1,10 @@
+train:
+    dataset_class: GraphEmbeddedDataset
+    base_dir: data/FMNISTGraph/fmnist_train_knn_graph-2.pkl
+    train: True
+    smsl_setting: True
+test:
+    dataset_class: GraphEmbeddedDataset
+    base_dir: data/FMNISTGraph/fmnist_test_knn_graph-2.pkl    
+    train: False
+    smsl_setting: True

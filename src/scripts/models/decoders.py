@@ -96,7 +96,7 @@ class DecoderCNNVAE(nn.Module):
     ):
         super().__init__()
         self.linear = nn.Sequential(
-                nn.Linear(latent_size, 256 * 16),
+                nn.Linear(latent_size, 256 * 36),
                 # nn.Linear(latent_size, 512 * 1),
                 activation_fn,
         )
@@ -145,8 +145,8 @@ class DecoderCNNVAE(nn.Module):
     def forward(self, lat):
         out = lat
         out = self.linear(out)
-        out = out.reshape(out.shape[0], -1, 4, 4)
-        # out = out.reshape(out.shape[0], -1, 1, 1)
+        # out = out.reshape(out.shape[0], -1, 4, 4)
+        out = out.reshape(out.shape[0], -1, 6, 6)
         for layer in self.layers[:-1]:
             out = self.activation_fn(layer(out))
             # out = layer(out)

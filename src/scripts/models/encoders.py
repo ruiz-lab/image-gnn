@@ -87,8 +87,8 @@ class EncoderCNNVAE(nn.Module):
                 # nn.GELU()
             ]
         )
-        self.mean_layer = nn.Linear(256 * 16, latent_size)
-        self.var_layer = nn.Linear(256 * 16, latent_size)
+        self.mean_layer = nn.Linear(256 * 36, latent_size)
+        self.var_layer = nn.Linear(256 * 36, latent_size)
         # self.mean_layer = nn.Linear(latent_size, latent_size)
         # self.var_layer = nn.Linear(latent_size, latent_size)
         self.activation_fn = activation_fn
@@ -253,7 +253,6 @@ class EncoderMLP(nn.Module):
         self, 
         in_features, 
         hidden_size,
-        latent_size,
         layers=1, 
         activation_fn=nn.ReLU(),
         **kwargs
