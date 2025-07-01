@@ -1,16 +1,13 @@
 import sys
-
 import yaml
-
+import pickle
 import argparse
-
-import numpy as np
 
 import torch
 
-from tqdm import tqdm
+import numpy as np
 
-from time import time
+import matplotlib.pyplot as plt
 
 from models.models import kNNModel
 
@@ -20,6 +17,21 @@ from torch_geometric.transforms import ToUndirected
 
 from dataclasses import dataclass
 
+from tqdm import tqdm
+from time import time
+from pathlib import Path
+
+
+def smart_load(path):
+    path = Path(path)
+    if path.suffix == ".pkl":
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    elif path.suffix == ".npy":
+        return np.load(path, allow_pickle=True)
+    else:
+        raise ValueError(f"Unsupported file type: {path.suffix}")
+
 
 @dataclass
 class Embedding:
@@ -28,15 +40,14 @@ class Embedding:
 
 
 def build_datasets(ds_config):
-    datasets  = []
+    datasets = []
     for ds_type, configs in ds_config.items():
         datasets.append(
             Embedding(
-                dataset=np.load(configs["base_dir"]),
+                dataset=smart_load(configs["base_dir"]),
                 train=True if ds_type == "train" else False
             )
         )
-
     return datasets
 
 
@@ -45,28 +56,22 @@ def parse_args(args):
 
     parser.add_argument(
         "-d",
-        "--dataset_config", 
-        type=str, 
-        help="Training configuration file", 
+        "--dataset_config",
+        type=str,
+        help="Training configuration file",
         required=True
     )
 
     parser.add_argument(
         "-k",
-        "--knn", 
-        type=str, 
-        help="Number of sampled neighbors", 
+        "--knn",
+        type=str,
+        help="Number of sampled neighbors",
         required=True
     )
- 
+
     return parser.parse_args(args)
 
-
-# def build_edge_index(node_idx, neighb_idxs):
-#     s = np.array([[node_idx] * len(neighb_idxs)], dtype=int)
-#     r = [neighb_idxs]
-
-#     return torch.tensor(np.append(s, r, axis=0))
 
 def build_edge_index(node_idx, neighb_idxs):
     source = torch.full((len(neighb_idxs),), node_idx, dtype=torch.long)
@@ -92,7 +97,7 @@ def main(sys_args):
         n_trees=100000
     )
 
-    x = torch.empty(full_ds[:, :-2].shape)
+    x = torch.tensor(full_ds[:, :-2], dtype=torch.float)
     y = torch.tensor(full_ds[:, -2], dtype=torch.long)
 
     edge_indices = []
@@ -105,32 +110,46 @@ def main(sys_args):
     edge_index = torch.cat(edge_indices, dim=1)
     edge_weight = torch.cat(edge_weights, dim=0)
 
+    raw_weights = torch.cat(edge_weights, dim=0).numpy()
+
+    plt.figure(figsize=(7, 4))
+    plt.hist(raw_weights, bins=100)
+    plt.title("Edge Weights (Gaussian Kernel) Before Thresholding")
+    plt.xlabel("Weight")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("edge_weights_before_thresholding.png")
+    plt.show()
+
     edge_weight = edge_weight.view(-1)
     edge_weight[edge_weight < 0.75] = 0.0
 
     edge_index, edge_weight = to_undirected(
-        edge_index, 
-        edge_weight, 
+        edge_index,
+        edge_weight,
         reduce='mean'
     )
 
-    train_mask = torch.ones((full_ds.shape[0],), dtype=torch.long)
-    train_mask[ds[0].dataset.shape[0]:] = torch.zeros(
-        (ds[1].dataset.shape[0],), 
-        dtype=torch.long
-    )
+    plt.figure(figsize=(7, 4))
+    plt.hist(edge_weight.numpy(), bins=100)
+    plt.title("Edge Weights After Thresholding (< 0.75 set to 0)")
+    plt.xlabel("Weight")
+    plt.ylabel("Frequency")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig("edge_weights_after_thresholding.png")
+    plt.show()
 
-    test_mask = torch.zeros((full_ds.shape[0]), dtype=torch.long)
-    test_mask[ds[0].dataset.shape[0]:] = torch.ones(
-        (ds[1].dataset.shape[0],), 
-        dtype=torch.long
-    )
+    train_mask = torch.zeros(full_ds.shape[0], dtype=torch.bool)
+    train_mask[:ds[0].dataset.shape[0]] = True
+    test_mask = ~train_mask
 
-    train_graph_data = Data(x, edge_index, edge_weights=edge_weight, y=y, mask=train_mask)
-    test_graph_data = Data(x, edge_index, edge_weights=edge_weight, y=y, mask=test_mask)
+    train_graph_data = Data(x, edge_index, edge_weight=edge_weight, y=y, mask=train_mask)
+    test_graph_data = Data(x, edge_index, edge_weight=edge_weight, y=y, mask=test_mask)
 
-    torch.save(train_graph_data, 'data/CIFAR10Graph/cifar10_train_knn_graph-2.pkl')
-    torch.save(test_graph_data, 'data/CIFAR10Graph/cifar10_test_knn_graph-2.pkl')
+    torch.save(train_graph_data, 'data/FMNISTGraph/fmnist_train_knn_graph-3.pkl')
+    torch.save(test_graph_data, 'data/FMNISTGraph/fmnist_test_knn_graph-3.pkl')
 
 
 if __name__ == "__main__":

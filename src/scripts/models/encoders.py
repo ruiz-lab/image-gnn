@@ -3,6 +3,8 @@ import torch.nn as nn
 
 from torch.nn import functional as F
 
+from torch_geometric.nn import MessagePassing
+
 from typing import List, Dict, Any
 
 
@@ -87,8 +89,8 @@ class EncoderCNNVAE(nn.Module):
                 # nn.GELU()
             ]
         )
-        self.mean_layer = nn.Linear(256 * 36, latent_size)
-        self.var_layer = nn.Linear(256 * 36, latent_size)
+        self.mean_layer = nn.Linear(256 * 16, latent_size)
+        self.var_layer = nn.Linear(256 * 16, latent_size)
         # self.mean_layer = nn.Linear(latent_size, latent_size)
         # self.var_layer = nn.Linear(latent_size, latent_size)
         self.activation_fn = activation_fn
@@ -273,3 +275,19 @@ class EncoderMLP(nn.Module):
             out = self.activation_fn(layer(out))
 
         return out
+
+class WeightedSAGEConv(MessagePassing):
+    def __init__(self, in_channels, out_channels):
+        super().__init__(aggr='mean')
+        self.lin = nn.Linear(in_channels, out_channels)
+        self.root_lin = nn.Linear(in_channels, out_channels)
+
+    def forward(self, x, edge_index, edge_weight):
+        edge_weight = edge_weight.view(-1, 1)
+        return self.propagate(edge_index, x=x, edge_weight=edge_weight)
+
+    def message(self, x_j, edge_weight):
+        return edge_weight * x_j
+
+    def update(self, aggr_out, x):
+        return self.lin(aggr_out) + self.root_lin(x)

@@ -12,8 +12,9 @@ import torch.nn.functional as F
 from torch_geometric.nn import GATv2Conv, GATConv, GCNConv, GatedGraphConv, ARMAConv
 
 from annoy import AnnoyIndex
+from sklearn.decomposition import PCA
 
-from models.encoders import EncoderVAE, EncoderCNNVAE, EncoderVQVAE, EncoderMLP
+from models.encoders import EncoderVAE, EncoderCNNVAE, EncoderVQVAE, EncoderMLP, WeightedSAGEConv
 from models.gnns import GNNBasicBlock, DGMLayer, DGMGNNBasicBlock
 from models.decoders import DecoderVAE, DecoderCNNVAE, DecoderVQVAE, DecoderMLP
 
@@ -118,9 +119,9 @@ class CNNVAEModel(nn.Module):
 
     def __init__(
         self,
-        in_channels=1,
-        latent_size=64,
-        blocks=[4, 4, 1],
+        in_channels=3,
+        latent_size=256,
+        blocks=[3, 3, 1],
         **kwargs
     ):
         super().__init__()
@@ -148,6 +149,31 @@ class CNNVAEModel(nn.Module):
         y_hat = self.decoder(z)
 
         return y_hat, mean, logvar, z
+
+class GNN(torch.nn.Module):
+    @staticmethod
+    def pre_init(config, **kwargs):
+        config["in_channels"] = config["in_features"]
+        config["hidden_channels"] = config["hidden_size"]
+        config["out_channels"] = config["out_size"]
+
+        return config
+
+    def __init__(self, in_channels, hidden_channels, out_channels, **kwargs):
+        super().__init__()
+        self.conv1 = WeightedSAGEConv(in_channels, hidden_channels)
+        self.conv2 = WeightedSAGEConv(hidden_channels, hidden_channels)
+        self.lin = nn.Linear(hidden_channels, out_channels)
+
+    def forward(self, batch):
+        out = self.conv1(batch.x, batch.edge_index, batch.edge_weight)
+        out = F.relu(out)
+        #x = self.conv2(x, edge_index, edge_weight)
+        #x = F.relu(x)
+        out = self.lin(out)
+
+        return out[batch.mask.bool()]
+
 
 class GNNModel(nn.Module):
     """
@@ -194,7 +220,7 @@ class GNNModel(nn.Module):
                         res_connect=True
                     ) for l in range(layers-1)
                 ],
-                # nn.Dropout(dropout),
+                nn.Dropout(dropout),
                 nn.Linear(hidden_size, hidden_size // 2),
                 nn.LeakyReLU(),
                 nn.Dropout(dropout),
@@ -207,19 +233,6 @@ class GNNModel(nn.Module):
 
     def _eval(self):
         pass
-
-    # def call(self, x, edge_index, conv_fwd_args):
-    #     out = x
-
-    #     for layer in self.layers:
-    #         if isinstance(layer, GNNBasicBlock):
-    #             out, _ = layer(out, edge_index, **conv_fwd_args)
-    #         elif isinstance(layer, self.gnn_conv):
-    #             out = layer(out, edge_index, **conv_fwd_args)
-    #         else:
-    #             out = layer(out)
-
-    #     return out
 
     def forward(self, batch):
         out = batch.x
@@ -244,9 +257,8 @@ class GNNModel(nn.Module):
             else:
                 out = layer(out)
 
-        # return out[torch.argwhere(batch.mask.reshape(-1)).reshape(-1)]
-        # return out[torch.argwhere(batch.mask[:batch.batch_size]).reshape(-1)]
-        return out[:batch.batch_size]
+        # return out[:batch.batch_size]
+        return out[batch.mask.bool()]
 
 class DGMGNNModel(nn.Module):
     """
@@ -360,7 +372,6 @@ class DGMGNNModel(nn.Module):
 
         # return out
         return out[torch.argwhere(batch.mask.reshape(-1)).reshape(-1)]
-        # return jax.vmap(self.call, in_axes=(0, 0, 0))(out, batch.edge_index, conv_fwd_args)
 
 class MLPModel(nn.Module):
     """
@@ -472,6 +483,9 @@ class kNNModel():
     def predict(self, k):
         k_nn = [self.__call__(index, k)[0] for index in self.indexes]
 
+class PCAModel(PCA):
+    def __init__(self, n_components):
+        super().__init__(n_components)
 
 class SonnetExponentialMovingAverage(nn.Module):
     # See: https://github.com/deepmind/sonnet/blob/5cbfdc356962d9b6198d5b63f0826a80acfdf35b/sonnet/src/moving_averages.py#L25.

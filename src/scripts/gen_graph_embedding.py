@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from pathlib import Path
 
-from models.models import VAEModel, CNNVAEModel, AutoEncoderModel, VQVAEModel
+from models.models import VAEModel, CNNVAEModel, AEModel, VQVAEModel
 from data_preproc.datasets import build_datasets
 
 from torch_geometric.loader import DataLoader
@@ -66,9 +66,9 @@ def main(sys_args, model):
             test_output, test_mu, test_logvar, *test_z = model(test_batch)
         # test_mu = test_mu.flatten(start_dim=1)
 
-    ds_path = "data/CIFAR10Embeddings-3"
-    train_ds_path = ds_path + "/cifar10_train_embeddings.npy"
-    test_ds_path = ds_path + "/cifar10_test_embeddings.npy"
+    ds_path = "data/PathMNISTEmbeddings"
+    train_ds_path = ds_path + "/pathmnist_train_embeddings.npy"
+    test_ds_path = ds_path + "/pathmnist_test_embeddings.npy"
 
     np_z = mu.detach().numpy()
     np_targets = np.expand_dims(train_ds.targets.numpy(), axis=1)
@@ -87,11 +87,11 @@ def main(sys_args, model):
 
 if __name__ == "__main__":
     path = "src/scripts/checkpoints/"
-    model_id = "032725-215432-21.pt"
+    model_id = "061025-153922-77.pt"
     model_path = path + model_id
 
     model = CNNVAEModel()
-    # model = AutoEncoderModel()
+    # model = AEModel()
     model.load_state_dict(torch.load(model_path))
     model.eval()
 

@@ -12,6 +12,7 @@ from datetime import datetime
 
 from pathlib import Path
 
+from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 from torch_geometric.loader import NeighborLoader
 
@@ -23,6 +24,7 @@ from models.models import (
     AEModel, 
     VQVAEModel, 
     GNNModel, 
+    GNN,
     DGMGNNModel, 
     MLPModel
 )
@@ -55,39 +57,35 @@ class Trainer():
         torch.save(model.state_dict(), path)
 
     def parse_grow_graph(self, graph_ds, batch_size):
-        n0 = 1000
+        n0=6000
         n_increases = 1
-        increase_rate = 10
+        increase_rate = 5000
 
         grow_graph_loader = []
-        if graph_ds.train:
-            for i in range(n_increases):
-                m = n0 + (i * increase_rate)
+        for i in range(n_increases):
+            m = n0 + (i * increase_rate)
 
-                idx = torch.randperm(graph_ds.data.x.shape[0])[:m]
-                sampled_graph_data = graph_ds.data.subgraph(idx)
+            idx = torch.randperm(graph_ds.data.x.shape[0])[:m]
+            mask = torch.zeros_like(graph_ds.data.mask, dtype=torch.bool)
+            mask[idx] = True
+            edge_mask = mask[graph_ds.data.edge_index[0]] & mask[graph_ds.data.edge_index[1]]
 
-                # sampled_graph_data.edge_weight[sampled_graph_data.edge_weight <= 0.95] = 0.0
-
-                loader = NeighborLoader(
-                    sampled_graph_data, 
-                    num_neighbors=[25] * 2, 
-                    batch_size=batch_size, 
-                    input_nodes=sampled_graph_data.mask.nonzero().view(-1), # Take that off
-                    shuffle=False
-                )
-
-                grow_graph_loader.append(loader)
-        else:
-            loader = NeighborLoader(
-                graph_ds.data, 
-                num_neighbors=[25] * 2, 
-                # batch_size=batch_size, # Increase batch size to the whole test size
-                # batch_size=int(graph_ds.data.mask.sum()),
-                batch_size=int(graph_ds.data.mask.sum() // 2),
-                input_nodes=graph_ds.data.mask.nonzero().view(-1),
-                shuffle=False
+            sub_data = Data(
+                x=graph_ds.data.x,
+                y=graph_ds.data.y,
+                edge_index=graph_ds.data.edge_index[:, edge_mask],
+                edge_weight=graph_ds.data.edge_weight[edge_mask],
+                mask=mask,
+                m=mask.sum().item()
             )
+
+            loader = NeighborLoader(
+                sub_data, 
+                num_neighbors=[10, 10],
+                batch_size=batch_size, 
+                input_nodes=sub_data.mask.bool()
+            )
+
             grow_graph_loader.append(loader)
 
         return grow_graph_loader
@@ -121,7 +119,7 @@ class Trainer():
             train_losses = []
 
             for i, train_batch in tqdm(enumerate(train_dl)):
-                # batch = train_batch.to(self.device)
+                batch = train_batch.to(self.device)
 
                 # Forward pass
                 y_hat = model(batch)
@@ -177,7 +175,7 @@ class Trainer():
         epochs = self.training_config["num_epochs"] 
 
         for _ in range(1):
-            run = wandb.init(project="ICML-image-gnn_train-CIFAR10-GCN", reinit=True)
+            run = wandb.init(project="GNN-image-gnn_train-CIFAR10", reinit=True)
 
             model : nn.Module = getattr(sys.modules[__name__], self.model_config["model"])
             model = model(**model.pre_init(self.model_config["args"])).to(self.device)
@@ -283,7 +281,11 @@ class Trainer():
 
                 # Compute loss
                 J = loss(batch.y, y_hat)
-                train_acc.append(100 * (sum(batch.y.detach() == torch.max(y_hat, axis=1).indices.detach()) / batch.y.detach().shape[0]).item())
+                # train_acc.append(
+                #     100 * (
+                #         sum(batch.y.detach() == torch.max(y_hat, axis=1).indices.detach()) / batch.y.detach().shape[0]
+                #     ).item()
+                # )
 
                 # Backward pass
                 J.backward()
@@ -309,13 +311,17 @@ class Trainer():
 
                     # Compute val loss
                     J = loss(batch.y, y_val)
-                    test_acc.append(100 * (sum(batch.y.detach() == torch.max(y_val, axis=1).indices.detach()) / batch.y.detach().shape[0]).item())
+                    # test_acc.append(
+                    #     100 * (
+                    #         sum(batch.y.detach() == torch.max(y_val, axis=1).indices.detach()) / batch.y.detach().shape[0]
+                    #     ).item()
+                    # )
 
                     test_losses.append(J.cpu().numpy())
 
                 print(f"Test Loss: {np.mean(test_losses)}")
-                print(f"Test Acc: {np.mean(test_acc):.2f}%")
-                print(f"Train Acc: {np.mean(train_acc):.2f}%")                
+                # print(f"Test Acc: {np.mean(test_acc):.2f}%")
+                # print(f"Train Acc: {np.mean(train_acc):.2f}%")                
 
             # scheduler.step(np.mean(test_losses))            
 
@@ -328,12 +334,13 @@ class Trainer():
             self.train_ds,
             self.training_config["batch_size"]
         )
-        test_dl = self.parse_grow_graph(
-            self.test_ds, 
-            self.training_config["batch_size"]
+        test_dl = NeighborLoader(
+            self.test_ds.data, 
+            input_nodes=self.test_ds.data.mask.bool(), 
+            num_neighbors=[-1], 
+            batch_size=512
         )
 
-        num_samples = len(self.train_ds)
         batch_size = train_dl[0].batch_size
 
         lr = self.training_config["learning_rate"]
@@ -347,12 +354,12 @@ class Trainer():
 
         loss = getattr(sys.modules[__name__], self.training_config["loss"])
         optimizer = torch.optim.Adam(params=model.parameters(), lr=lr, weight_decay=0.0)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=50, min_lr=1e-6)
 
         n_iter_per_epoch = int(epochs // 1)
         for i in tqdm(range(1)):
             train_losses = []
-            # for epoch in tqdm(range(int(epochs // 10))):
+            num_samples = train_dl[i].data.m
+
             for epoch in tqdm(range(i * n_iter_per_epoch, (i + 1) * n_iter_per_epoch)):
                 test_losses = []
                 train_acc = []
@@ -365,13 +372,16 @@ class Trainer():
                     y_hat = model(batch)
 
                     # Compute loss
-                    J = loss(batch.y[:batch.batch_size].reshape(-1).to(torch.long), y_hat)
+                    J = loss(
+                        batch.y[batch.mask.bool()].reshape(-1).to(torch.long), 
+                        y_hat
+                    )
                     train_acc.append(
                         100 * (
                             sum
                             (
-                                batch.y[:batch.batch_size].reshape(-1).detach() == torch.max(y_hat, axis=1).indices.detach()
-                            ) / batch.y[:batch.batch_size].reshape(-1).detach().shape[0]
+                                batch.y[batch.mask.bool()].reshape(-1).detach() == torch.max(y_hat, axis=1).indices.detach()
+                            ) / batch.y[batch.mask.bool()].reshape(-1).detach().shape[0]
                         ).item()
                     )
 
@@ -383,28 +393,31 @@ class Trainer():
 
                     optimizer.zero_grad()
 
-                    if j % 2 == 0:
+                    if j % 20 == 0:
                         print('Train Epoch {}/{} [{:>5}/{} ({:>2.0f}%)] | Loss: {}'.format(
                             epoch+1, epochs, j * batch_size, num_samples, 
-                            100*j / len(train_dl), J.detach())
+                            100*j / len(train_dl[i]), J.detach())
                         )
                         train_losses.append(J.detach())
 
                 with torch.no_grad():
-                    for j, test_batch in enumerate(test_dl[0]):
+                    for j, test_batch in enumerate(test_dl):
                         batch = test_batch.to(self.device)
 
                         # Forward pass
                         y_val = model(batch)
 
                         # Compute val loss
-                        J = loss(batch.y[:batch.batch_size].reshape(-1).to(torch.long), y_val)
+                        J = loss(
+                            batch.y[batch.mask.bool()].reshape(-1).to(torch.long), 
+                            y_val
+                        )
                         test_acc.append(
                             100 * (
                                 sum
                                 (
-                                    batch.y[:batch.batch_size].reshape(-1).detach() == torch.max(y_val, axis=1).indices.detach()
-                                ) / batch.y[:batch.batch_size].reshape(-1).detach().shape[0]
+                                    batch.y[batch.mask.bool()].reshape(-1).detach() == torch.max(y_val, axis=1).indices.detach()
+                                ) / batch.y[batch.mask.bool()].reshape(-1).detach().shape[0]
                             ).item()
                         )
 
@@ -414,8 +427,5 @@ class Trainer():
                     print(f"Test Acc: {np.mean(test_acc):.2f}%")
                     print(f"Train Acc: {np.mean(train_acc):.2f}%")                
 
-                # scheduler.step(np.mean(test_losses))            
-
-        # print(f"{acc:.2f}%")
         if save_model:
             self.model_checkpoint(model, np.mean(test_losses))
