@@ -1,17 +1,28 @@
 train:
-    dataset_class: EmbeddedDataset
+    dataset_class: GraphEmbeddedDataset
     # base_dir: data/CIFAR10Embeddings/source_data/cifar10_train_embeddings.npy
-    # base_dir: data/CIFAR10Embeddings-2/smsl_embeddings/cifar10_smsl_train_embeddings.npy
-    # base_dir: data/MNISTEmbeddings/smsl_embeddings/mnist_smsl_train_embeddings.npy
-    base_dir: data/FMNISTEmbeddings/smsl_embeddings/fmnist_smsl_train_embeddings.npy
+    # base_dir: data/CIFAR10Embeddings/smsl_embeddings/cifar10_smsl_train_pca_embeddings.npy
+    # base_dir: data/MNISTEmbeddings/smsl_embeddings/mnist_smsl_train_pca_embeddings.npy
+    # base_dir: data/FMNISTEmbeddings/smsl_embeddings/fmnist_smsl_train_embeddings.npy
+    # base_dir: data/MNISTGraph/mnist_train_knn_graph-pca.pkl
+    base_dir: data/FMNISTGraph/fmnist_train_knn_graph-3.pkl
+    # base_dir: data/FER2013Embeddings/smsl_embeddings/fer2013_smsl_train_pca_embeddings.npy
+    # base_dir: data/CELEBAEmbeddings/smsl_embeddings/celeba_smsl_train_gb_pca_embeddings.npy
+    # base_dir: data/PathMNISTEmbeddings/smsl_embeddings/pathmnist_smsl_train_pca_embeddings.npy
+    # base_dir: data/PathMNISTGraph/pathmnist_train_knn_graph.pkl
     train: True
     smsl_setting: True
 test:
-    dataset_class: EmbeddedDataset
+    dataset_class: GraphEmbeddedDataset
     # base_dir: data/CIFAR10Embeddings/source_data/cifar10_test_embeddings.npy
-    # base_dir: data/CIFAR10Embeddings-2/smsl_embeddings/cifar10_smsl_test_embeddings.npy
-    # base_dir: data/MNISTEmbeddings/smsl_embeddings/mnist_smsl_test_embeddings.npy
-    base_dir: data/FMNISTEmbeddings/smsl_embeddings/fmnist_smsl_test_embeddings.npy
+    # base_dir: data/CIFAR10Embeddings/smsl_embeddings/cifar10_smsl_test_pca_embeddings.npy
+    # base_dir: data/MNISTEmbeddings/smsl_embeddings/mnist_smsl_test_pca_embeddings.npy
+    # base_dir: data/FMNISTEmbeddings/smsl_embeddings/fmnist_smsl_test_embeddings.npy
+    # base_dir: data/MNISTGraph/mnist_test_knn_graph-pca.pkl    
+    base_dir: data/FMNISTGraph/fmnist_test_knn_graph-3.pkl    
+    # base_dir: data/FER2013Embeddings/smsl_embeddings/fer2013_smsl_test_pca_embeddings.npy
+    # base_dir: data/CELEBAEmbeddings/smsl_embeddings/celeba_smsl_test_gb_pca_embeddings.npy
+    # base_dir: data/PathMNISTEmbeddings/smsl_embeddings/pathmnist_smsl_test_pca_embeddings.npy
+    # base_dir: data/PathMNISTGraph/pathmnist_test_knn_graph.pkl
     train: False
     smsl_setting: True
-
