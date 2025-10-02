@@ -6,6 +6,8 @@ import pathlib
 
 import numpy as np
 
+import scipy.io as sio
+
 import torch
 import torch.nn as nn
 
@@ -26,7 +28,7 @@ from time import time
 from pathlib import Path
 from itertools import product
 from typing import List, Dict
-
+from dataclasses import dataclass
 
 def smart_load(path):
     path = Path(path)
@@ -52,6 +54,11 @@ def build_datasets(ds_config):
 
     return datasets
 
+@dataclass
+class HyperNode:
+    hyper_node: Data
+    # y: torch.tensor
+    author: str
 
 class MNISTDataset(MNIST):
     def __init__(
@@ -329,6 +336,111 @@ class CelebAGenderBinary(CelebA):
     def __getitem__(self, index):
         img, _ = super().__getitem__(index)
         return img, self.targets[index]
+
+class WANDataset(Dataset):
+    author_class = {
+        'abbott': 0,
+        'stevenson': 1,
+        'alcott': 2,
+        'alger': 3,
+        'allen': 4,
+        'austen': 5,
+        'bronte': 6,
+        'cooper': 7,
+        'dickens': 8,
+        'garland': 9,
+        'hawthorne': 10,
+        'james': 11,
+        'melville': 12,
+        'page': 13,
+        'thoreau': 14,
+        'twain': 15,
+        'doyle': 16,
+        'irving': 17,
+        'poe': 18,
+        'jewett': 19,
+        'wharton': 20
+    }
+
+    def __init__(self, base_dir="data/WANs/wan_data_files.mat", train=True):
+        super().__init__()
+
+        self.data, self.freqs, self.targets, self.authors = self._load_data(base_dir)
+
+    # Limiting distribution pi via matrix power
+    def _get_limiting_distribution(self, transition_matrix):
+        P_lim = np.linalg.matrix_power(transition_matrix, 100)
+
+        return P_lim[0, :]
+
+
+    # Limiting distribution pi via solving linear system
+    # def _get_limiting_distribution_lin_eq(self, transition_matrix):
+    #     num_states = transition_matrix.shape[0]
+
+    #     A = transition_matrix.T - np.identity(num_states)
+    #     A[0, :] = 1
+
+    #     b = np.zeros(num_states)
+    #     b[0] = 1
+
+    #     lim_distr = np.linalg.solve(A, b)
+
+    #     return lim_distr
+
+    def _load_data(self, base_dir):
+        mat_data = sio.loadmat(base_dir)
+
+        data = []
+        freqs = []
+        targets =[]
+        authors = []
+        for k in mat_data.keys():
+            k_elems = k.split('_')
+            if ('wan' in k_elems and k_elems.index('wan') == 0):
+                author = k.split('_')[1]
+                a_label = self.author_class[author]
+
+                author_wan = mat_data[k].copy()
+                zero_rows = ~np.any(author_wan, axis=1)
+                author_wan[zero_rows, :] = 1.0
+                norm_wan = author_wan / author_wan.sum(axis=1)[:, np.newaxis]
+
+                words_freq = mat_data['_'.join(['freq'] + k_elems[1:])]
+                words_freq = (words_freq / words_freq.sum(keepdims=True))[0, :]
+
+                data.append(norm_wan)
+                freqs.append(words_freq)
+                targets.append(a_label)
+                authors.append(author)
+
+        return data, freqs, targets, authors
+
+    def __getitem__(self, index):
+        X, y = torch.from_numpy(self.data[index]), torch.tensor(self.targets[index])
+        words_freqs = self.freqs[index].T
+        author = self.authors[index]
+
+        edge_index = torch.nonzero(X, as_tuple=True)
+        edge_index = torch.stack(edge_index, dim=0)
+
+        edge_weight = X[edge_index[0], edge_index[1]]
+
+        data = Data()
+        data.x = words_freqs
+        data.adj = X
+        data.edge_index = edge_index
+        data.edge_weight = edge_weight
+
+        hyper_node = HyperNode(
+            hyper_node=data,
+            author=author
+        )
+
+        return hyper_node
+
+    def __len__(self):
+        return len(self.data)
 
 class EmbeddedDataset(Dataset):
     def __init__(

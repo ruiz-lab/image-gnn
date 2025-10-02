@@ -6,14 +6,41 @@ import torch.nn as nn
 from torch.nn import functional as F
 
 from torch_geometric.nn import MessagePassing
-from torch_geometric.nn import GATv2Conv, GATConv, GatedGraphConv
+from torch_geometric.nn import GCNConv, SAGEConv, GraphConv, GATv2Conv, GATConv, GatedGraphConv
 
-from torch_geometric.nn.pool import global_mean_pool
+from torch_geometric.nn.pool import global_add_pool, global_max_pool, global_mean_pool
+
+from torch_geometric.data import Batch, Data
+from torch_geometric.loader import DataLoader
 
 from torch_geometric.utils import scatter, to_dense_adj
 from torch_geometric.utils.num_nodes import maybe_num_nodes
 
-from typing import List, Dict
+from typing import List, Dict, Literal, Optional
+
+
+_CONV_MAP = {
+    "gcn": GCNConv,
+    "sage": SAGEConv,
+    "gatv2": GATv2Conv,
+    "graph": GraphConv,
+}
+
+_POOL_MAP = {
+    "sum": global_add_pool,
+    "max": global_max_pool,
+    "mean": global_mean_pool,
+}
+
+def _act(name: str = "relu") -> nn.Module:
+    name = (name or "relu").lower()
+    if name == "relu":
+        return nn.ReLU(inplace=True)
+    if name == "gelu":
+        return nn.GELU()
+    if name == "elu":
+        return nn.ELU(inplace=True)
+    raise ValueError(f"unknown activation: {name}")
 
 
 class GNNBasicBlock(nn.Module):
@@ -258,3 +285,120 @@ class DGMGNNBasicBlock(nn.Module):
         out = F.leaky_relu(out)
 
         return out, attention_weights, out_lgi
+
+class GNN1(nn.Module):
+    """Two graph conv layers over each WAN + global pool → y_b.
+
+    Args
+    ----
+    in_channels : node feature dim inside each WAN (freq signal length)
+    hidden      : hidden width for the first conv
+    out_channels: dimension of y_b (embedding size)
+    conv        : one of {"gcn","sage","gatv2","graph"}
+    aggregator  : one of {"sum","max","mean"}
+    dropout     : dropout between convs
+    act         : activation name
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        hidden: int = 64,
+        out_channels: int = 128,
+        conv: str = "gcn",
+        aggregator: Literal["sum","max","mean"] = "sum",
+        dropout: float = 0.0,
+        act: str = "relu",
+    ):
+        super().__init__()
+        Conv = _CONV_MAP[conv]
+        self.conv1 = Conv(in_channels, hidden)
+        self.bn1 = nn.BatchNorm1d(hidden)
+        self.conv2 = Conv(hidden, out_channels)
+        self.bn2 = nn.BatchNorm1d(out_channels)
+        self.act = _act(act)
+        self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
+        self.pool = _POOL_MAP[aggregator]
+
+    def forward(self, wan_batch: Batch, **kwargs) -> torch.Tensor:
+        device = kwargs['device']
+        wans = wan_batch.x
+        
+        y = []
+        wans = [wan.hyper_node for wan in wans]
+        loader = DataLoader(wans, batch_size=256)
+        for b in loader:
+            b = b.to(device)
+
+            h = self.conv1(b.x, b.edge_index, b.edge_weight) if isinstance(self.conv1, GCNConv) else self.conv1(b.x, b.edge_index)
+            h = self.bn1(h)
+            h = self.act(h)
+            h = self.dropout(h)
+            h = self.conv2(h, b.edge_index, b.edge_weight) if isinstance(self.conv2, GCNConv) else self.conv2(h, b.edge_index)
+            h = self.bn2(h)
+            h = self.act(h)
+            y.append(self.pool(h, b.batch))  # [num_wans_in_batch, out_channels]
+
+        return torch.cat(y, dim=0)
+
+# ---------------------------
+# GNN_2: meta‑graph classifier
+# ---------------------------
+class GNN2(nn.Module):
+    """Stack of graph convs over the entropy‑precomputed meta‑graph → logits.
+
+    Args
+    ----
+    in_channels: input dim (must equal y_b dim)
+    hidden     : hidden width
+    num_layers : number of conv blocks (>=1)
+    num_classes: number of author classes
+    conv       : {"gcn","sage","gatv2","graph"}
+    dropout    : dropout before the classifier
+    act        : activation name
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        hidden: int,
+        num_layers: int,
+        num_classes: int,
+        conv: str = "gcn",
+        dropout: float = 0.1,
+        act: str = "relu",
+    ):
+        super().__init__()
+        assert num_layers >= 1
+        Conv = _CONV_MAP[conv]
+        self.blocks = nn.ModuleList()
+        cin = in_channels
+        for _ in range(num_layers - 1):
+            self.blocks.append(nn.ModuleList([
+                Conv(cin, hidden),
+                nn.BatchNorm1d(hidden),
+            ]))
+            cin = hidden
+        # final conv to hidden (so head sees a stable width)
+        self.final = nn.ModuleList([Conv(cin, hidden), nn.BatchNorm1d(hidden)])
+        self.act = _act(act)
+        self.head = nn.Sequential(nn.Dropout(dropout), nn.Linear(hidden, num_classes))
+
+    def forward(self, x: torch.Tensor, edge_index: torch.Tensor, edge_weight: Optional[torch.Tensor]) -> torch.Tensor:
+        h = x
+        # intermediate blocks
+        for conv, bn in self.blocks:
+            if isinstance(conv, GCNConv):
+                h = conv(h, edge_index, edge_weight)
+            else:
+                h = conv(h, edge_index)
+            h = bn(h)
+            h = self.act(h)
+        # final block
+        conv_f, bn_f = self.final
+        if isinstance(conv_f, GCNConv):
+            h = conv_f(h, edge_index, edge_weight)
+        else:
+            h = conv_f(h, edge_index)
+        h = bn_f(h)
+        h = self.act(h)
+        logits = self.head(h)
+        return logits

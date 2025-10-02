@@ -9,16 +9,33 @@ import torch.nn as nn
 
 import torch.nn.functional as F
 
-from torch_geometric.nn import GATv2Conv, GATConv, GCNConv, GatedGraphConv, ARMAConv
+from torch_geometric.nn import GATv2Conv, GATConv, GCNConv, GatedGraphConv, ARMAConv, SAGEConv, GraphConv
+
+from torch_geometric.nn.pool import global_add_pool, global_max_pool, global_mean_pool
+from torch_geometric.data import Batch, Data
 
 from annoy import AnnoyIndex
 from sklearn.decomposition import PCA
 
 from models.encoders import EncoderVAE, EncoderCNNVAE, EncoderVQVAE, EncoderMLP, WeightedSAGEConv
-from models.gnns import GNNBasicBlock, DGMLayer, DGMGNNBasicBlock
+from models.gnns import GNNBasicBlock, DGMLayer, DGMGNNBasicBlock, GNN1, GNN2
 from models.decoders import DecoderVAE, DecoderCNNVAE, DecoderVQVAE, DecoderMLP
 
-from typing import List, Dict
+from typing import List, Dict, Literal, Optional
+
+
+_CONV_MAP = {
+    "gcn": GCNConv,
+    "sage": SAGEConv,
+    "gatv2": GATv2Conv,
+    "graph": GraphConv,
+}
+
+_POOL_MAP = {
+    "sum": global_add_pool,
+    "max": global_max_pool,
+    "mean": global_mean_pool,
+}
 
 
 class GenericModel(nn.Module):
@@ -658,3 +675,54 @@ class VQVAEModel(nn.Module):
             self.vq.use_ema,
             batch.data_var,
         )
+
+#######################################################
+
+class E2EWanGNN(nn.Module):
+    """End‑to‑end model: GNN_1 on WANs → Y, then GNN_2 on meta‑graph → logits.
+
+    Forward:
+        logits_masked = model(wan_batch, meta_batch)
+    """
+    def __init__(
+        self,
+        # GNN_1
+        wan_in_channels: int,
+        g1_hidden: int = 64,
+        g1_out: int = 128,
+        g1_conv: str = "gcn",
+        g1_aggregator: Literal["sum","max","mean"] = "sum",
+        g1_dropout: float = 0.0,
+        # GNN_2
+        g2_hidden: int = 128,
+        g2_layers: int = 2,
+        g2_conv: str = "gcn",
+        num_classes: int = 10,
+        g2_dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.gnn1 = GNN1(
+            in_channels=wan_in_channels,
+            hidden=g1_hidden,
+            out_channels=g1_out,
+            conv=g1_conv,
+            aggregator=g1_aggregator,
+            dropout=g1_dropout,
+        )
+        self.gnn2 = GNN2(
+            in_channels=g1_out,
+            hidden=g2_hidden,
+            num_layers=g2_layers,
+            num_classes=num_classes,
+            conv=g2_conv,
+            dropout=g2_dropout,
+        )
+
+    def forward(self, batch: Batch, **kwargs) -> torch.Tensor:
+        # Stage 1: per‑WAN embeddings
+        Y = self.gnn1(batch, device=kwargs['device'])  # [N_sub, g1_out]
+        ei, ew = batch.edge_index, batch.edge_weight
+        logits = self.gnn2(Y, ei, ew)  # [N_sub, num_classes]
+        # return logits[batch.mask]
+        return logits
+

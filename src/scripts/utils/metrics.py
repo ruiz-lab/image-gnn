@@ -13,6 +13,13 @@ def rmse(y, y_hat):
 
     return rmse
 
+def kl_div(P, Q, lim_distr_P):
+    epsilon = 1e-10
+
+    return (
+        lim_distr_P * P * (np.log(np.clip(P, epsilon, None) / np.clip(Q, epsilon, None)))
+    ).sum()
+
 def torch_rmse(y, y_hat):
     N = y.shape[0]
     rmse = torch.sqrt(torch.sum((y - y_hat) ** 2) / N)
