@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from models.models import kNNModel
+from utils.manifold_sampling import uniform_sampling
 
 from torch_geometric.data import Data
 from torch_geometric.utils import to_undirected
@@ -79,7 +80,7 @@ def build_edge_index(node_idx, neighb_idxs):
     return torch.stack([source, target], dim=0)
 
 
-def main(sys_args):
+def main(sys_args, uniform=False):
     args = parse_args(sys_args)
 
     k = int(args.knn)
@@ -99,6 +100,13 @@ def main(sys_args):
 
     x = torch.tensor(full_ds[:, :-2], dtype=torch.float)
     y = torch.tensor(full_ds[:, -2], dtype=torch.long)
+
+    if uniform:
+        idxs = uniform_sampling(full_ds, x, model)
+        model = kNNModel(
+            ds=full_ds[idxs, :-2],
+            n_trees=100000
+        )
 
     edge_indices = []
     edge_weights = []
@@ -153,4 +161,8 @@ def main(sys_args):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--uniform', type=bool, default=False)
+    args = parser.parse_args()
+
+    sys.exit(main(sys.argv[1:], args.uniform))
