@@ -18,6 +18,7 @@ wandb/
 analysis/
 checkpoints/
 recon_images/
+results/
 
 # Distribution / packaging
 .Python
