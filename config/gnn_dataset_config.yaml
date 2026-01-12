@@ -11,7 +11,7 @@ train:
     # base_dir: data/PathMNISTEmbeddings/smsl_embeddings/pathmnist_smsl_train_pca_embeddings.npy
     # base_dir: data/PathMNISTGraph/pathmnist_train_knn_graph.pkl
     train: True
-    smsl_setting: True
+    smsl_setting: False
 test:
     dataset_class: GraphEmbeddedDataset
     # base_dir: data/CIFAR10Embeddings/source_data/cifar10_test_embeddings.npy

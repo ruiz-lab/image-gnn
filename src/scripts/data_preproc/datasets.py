@@ -377,7 +377,33 @@ class EmbeddedDataset(Dataset):
         manfld_dir += "_smsl_train_full_embeddings.pkl" if self.train else "_smsl_test_full_embeddings.pkl"
         return self._load_file(manfld_dir)
 
-    def _build_graph(self, graph_connectivity, index, sample_size=25):
+    def _get_balanced_label_data(self):
+        parent_dir = '/'.join(self.base_dir.split('/')[:-1])
+        manfld_dir = parent_dir + '/' + self.ds_name
+        manfld_dir += "_smsl_train_full_embeddings.npy" if self.train \
+            else "_smsl_test_full_embeddings.npy"
+
+        data = np.load(Path(self.base_dir))
+        manfld_data = np.load(Path(manfld_dir))
+
+        num_samples = 10000
+
+        if self.train:
+            idx_sample = np.random.choice(data.shape[0], num_samples, replace=False)
+            blncd_data = data[idx_sample]
+            blncd_manfld_data = np.append(manfld_data[idx_sample], manfld_data[data.shape[0]:], 0)
+        else:
+            idx_sample = np.random.choice(
+                list(range(data.shape[0] - num_samples, data.shape[0])), 
+                num_samples, 
+                replace=False
+            )
+            blncd_data = data
+            blncd_manfld_data = np.append(manfld_data[:data.shape[0]], manfld_data[idx_sample], 0)
+    
+        return (blncd_data, blncd_manfld_data)
+
+    def _build_graph(self, graph_connectivity, index, sample_size=5):
         graph_data = Data()
         pop_size = self.manfld_data.shape[0]
 
