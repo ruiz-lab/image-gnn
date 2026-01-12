@@ -156,7 +156,7 @@ class EmbeddedDataset(Dataset):
     def __init__(
         self, 
         base_dir,
-        ker_width=5,
+        ker_width=10,
         graph_connectivity="fully_connected",
         **kwargs
     ):
@@ -166,12 +166,16 @@ class EmbeddedDataset(Dataset):
         self.ds_name = re.split(r"embeddings", base_dir.lower().split('/')[1])[0]
         self.train = kwargs["train"]
 
+        self.sample_size = 10
         self.kernel_width = ker_width
         self.graph_connectivity = graph_connectivity
 
+        # self.data, self.manfld_data = self._get_balanced_label_data()
         self.data = self._get_data()
         if kwargs["smsl_setting"]:
             self.manfld_data = self._get_manifold_data()
+        else:
+            self.manfld_data = self.data
 
         self.mean = torch.tensor(self.manfld_data[..., :-2], dtype=torch.float32).mean(dim=0) \
             if kwargs["smsl_setting"] else torch.tensor(self.data[..., :-2], dtype=torch.float32).mean(dim=0)
@@ -205,7 +209,33 @@ class EmbeddedDataset(Dataset):
 
         return np.load(Path(manfld_dir))
 
-    def _build_graph(self, graph_connectivity, index, sample_size=25):
+    def _get_balanced_label_data(self):
+        parent_dir = '/'.join(self.base_dir.split('/')[:-1])
+        manfld_dir = parent_dir + '/' + self.ds_name
+        manfld_dir += "_smsl_train_full_embeddings.npy" if self.train \
+            else "_smsl_test_full_embeddings.npy"
+
+        data = np.load(Path(self.base_dir))
+        manfld_data = np.load(Path(manfld_dir))
+
+        num_samples = 10000
+
+        if self.train:
+            idx_sample = np.random.choice(data.shape[0], num_samples, replace=False)
+            blncd_data = data[idx_sample]
+            blncd_manfld_data = np.append(manfld_data[idx_sample], manfld_data[data.shape[0]:], 0)
+        else:
+            idx_sample = np.random.choice(
+                list(range(data.shape[0] - num_samples, data.shape[0])), 
+                num_samples, 
+                replace=False
+            )
+            blncd_data = data
+            blncd_manfld_data = np.append(manfld_data[:data.shape[0]], manfld_data[idx_sample], 0)
+    
+        return (blncd_data, blncd_manfld_data)
+
+    def _build_graph(self, graph_connectivity, index, sample_size=5):
         graph_data = Data()
 
         pop_size = self.manfld_data.shape[0]
@@ -230,7 +260,7 @@ class EmbeddedDataset(Dataset):
         graph_data.edge_weights = torch.flatten(
             torch.exp(- d_e / (self.kernel_width ** 2))
         )[:, None]
-        graph_data.edge_weights[graph_data.edge_weights < 0.9] = 0.0
+        graph_data.edge_weights[graph_data.edge_weights < 0.3] = 0.0
 
         graph_data.data = (graph_data.data - self.mean) / self.std \
             if self.ds_name == "cifar10" else graph_data.data
@@ -293,7 +323,8 @@ class EmbeddedDataset(Dataset):
     def __getitem__(self, index):
         return self._build_graph(
             self.graph_connectivity, 
-            index
+            index,
+            self.sample_size
         )
 
     def __len__(self):
