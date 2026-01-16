@@ -37,11 +37,22 @@ def latent_to_nodes(z_samples, embeddings, aknn_model):
     # embedding" and the actual image's embedding.
     # dists = torch.cdist(z_samples, embeddings)
 
-    return [aknn_model.get_nns_by_vector(z, 1, include_distance=False)\
-             for z in z_samples]
+    #return [aknn_model.get_nns_by_vector(z, 1, include_distances=False)\
+    #         for z in z_samples]
+
+    # Annoy expects float32 inputs
+    z_np_all = z_samples.detach().cpu().numpy().astype("float32")
+    
+    idxs = [
+        aknn_model.get_nns_by_vector(z, 1, include_distances=False)[0]
+        for z in z_np_all
+    ]
+
+    # Need this in tensor format
+    return torch.tensor(idxs, dtype=torch.long)
 
     # Then, we get the closest actual image embedding to each generated embedding.
-    return dists.argmin(dim=1)
+    # return dists.argmin(dim=1)
 
 def sample_manifold_nodes(embeddings, aknn_model, n_nodes, allowed_mask=None):
     z_samples = sample_latent_points(embeddings, n_nodes) # creates the generated, uniformly sampled embeddings
