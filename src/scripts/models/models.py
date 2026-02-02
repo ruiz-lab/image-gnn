@@ -483,6 +483,25 @@ class kNNModel():
     def predict(self, k):
         k_nn = [self.__call__(index, k)[0] for index in self.indexes]
 
+class ANNModel():
+    def __init__(self, ds, n_trees=500, k=-1, metric="euclidean"):
+        self.ann : AnnoyIndex = AnnoyIndex(ds.shape[1], metric)
+
+        self.indexes = list(range(ds.shape[0]))
+        self.targets = ds[:, 1]
+
+        for i in range(ds.shape[0]):
+            self.ann.add_item(i, ds[i, :])
+        _ = self.ann.build(n_trees)
+ 
+        self.k = k
+
+    def get_nns_by_item(self, index, n):
+        return self.ann.get_nns_by_item(index, n, self.k, include_distances=True)
+
+    def get_nns_by_vector(self, v, n):
+        return self.ann.get_nns_by_vector(v, n, include_distances=False)
+
 class PCAModel(PCA):
     def __init__(self, n_components):
         super().__init__(n_components)
