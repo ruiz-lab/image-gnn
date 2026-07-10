@@ -1,16 +1,23 @@
 model: GNNModel
 args:
-    in_features: 4096
-    hidden_size: 32
+    in_features: 256
+    hidden_size: 128
     out_size: 10
-    gnn_conv: GATv2Conv
+    gnn_conv: ARMAConv
     gnn_conv_args:
         # GAT
-        heads: 3
+        heads: 2
         concat: False
         edge_dim: 1
 
+        # GCN
+        aggr: add
+
+        # ARMA
+        num_stacks: 1
+        num_layers: 1
+
         # GatedGraph
-        num_layers: 2
+        num_layers: 1
     layers: 2
-    dropout: 0.4
+    dropout: 0.5

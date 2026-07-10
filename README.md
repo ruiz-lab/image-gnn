@@ -1,4 +1,4 @@
-# GNNs for Images: Study on Stability and Expressivity
+# GNNs for Images: Study on Stability and Transferability
 
 ## Requirements
 - pytorch (>=2.1.0)

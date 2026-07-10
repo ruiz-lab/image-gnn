@@ -15,6 +15,9 @@ logs/**
 .env/
 wandb/
 analysis/
+checkpoints/
+recon_images/
+results/
 
 # Distribution / packaging
 .Python
@@ -87,6 +90,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
 
 # IPython
 profile_default/

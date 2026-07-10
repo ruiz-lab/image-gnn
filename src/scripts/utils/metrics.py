@@ -34,5 +34,17 @@ def torch_vae_loss(x, x_hat):
 
     return reconstruction_loss +  beta * kl_loss
 
+def torch_vqvae_loss(x, x_hat):
+    (output, _, dict_loss, commit_loss, use_ema, data_var) = x_hat
+
+    reconstruction_loss = F.mse_loss(output, x) / data_var[0]
+
+    beta = 0.25
+
+    total_loss = reconstruction_loss + beta * commit_loss if use_ema \
+        else reconstruction_loss + beta * commit_loss + dict_loss
+
+    return total_loss
+
 def torch_ce_loss(y, y_hat):
     return F.cross_entropy(y_hat, y)

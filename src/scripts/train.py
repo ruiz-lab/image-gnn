@@ -50,7 +50,7 @@ def main(sys_args):
             config[config_name] = yaml.safe_load(f)
 
     trainer = Trainer(**config)
-    trainer.train_eval()
+    trainer.train_eval_grow_graph()
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

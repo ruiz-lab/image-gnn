@@ -59,9 +59,9 @@ def main():
     trainer.train()
 
 if __name__ == "__main__":
-    sweep_id = "x4kvqbno"
+    sweep_id = "ickck690"
     wandb.agent(
         sweep_id=sweep_id,
         function=main,
-        project="GNN-image-VAE_train"
+        project="GNN-image-VAE_train-FER2013"
     )
