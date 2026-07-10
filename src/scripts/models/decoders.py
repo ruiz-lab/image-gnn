@@ -90,62 +90,93 @@ class DecoderCNNVAE(nn.Module):
         self,
         out_channels,
         latent_size,
-        blocks=[1, 1, 1], 
+        blocks=[1, 1, 1],
         activation_fn=nn.LeakyReLU(),
+        img_size=28,
         **kwargs
     ):
         super().__init__()
-        self.linear = nn.Sequential(
-                nn.Linear(latent_size, 256 * 16),
-                # nn.Linear(latent_size, 512 * 1),
-                activation_fn,
-        )
-        self.layers = nn.ModuleList(
-            [
-                # nn.ConvTranspose2d(latent_size, 256, kernel_size=2, stride=2),
-                # nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2),
-                nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2, padding=1, output_padding=1),
-                *[DeConvBasicBlock(256, 256) for _ in range(blocks[0])],
-                nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2),
-                # nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),
-                *[DeConvBasicBlock(128, 128) for _ in range(blocks[1])],
-                nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
-                # nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
-                *[DeConvBasicBlock(64, 64) for _ in range(blocks[2])],
-                # nn.ConvTranspose2d(64, out_channels, kernel_size=2, stride=2),
-                nn.ConvTranspose2d(64, out_channels, kernel_size=3, padding=1),
 
-                # nn.ConvTranspose2d(64, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
-                # nn.GELU(),
-                # nn.Conv2d(64, 64, kernel_size=3, padding=1),
-                # nn.GELU(),
-                # nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
-                # nn.GELU(),
-                # nn.Conv2d(32, 32, kernel_size=3, padding=1),
-                # nn.GELU(),
-                # nn.ConvTranspose2d(32, out_channels, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.img_size = img_size
 
-                # nn.ConvTranspose2d(128, 128, kernel_size=2, stride=2),
-                # *[DeConvBasicBlock(128, 128) for _ in range(blocks[0])],
-                # nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
-                # *[DeConvBasicBlock(64, 64) for _ in range(blocks[1])],
-                # nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),
-                # *[DeConvBasicBlock(32, 32) for _ in range(blocks[2])],
-                # nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
-                # *[DeConvBasicBlock(16, 16) for _ in range(blocks[2])],
-                # nn.ConvTranspose2d(16, 16, kernel_size=2, stride=2, padding=2),
-                # *[DeConvBasicBlock(16, 16) for _ in range(blocks[2])],
-                # nn.ConvTranspose2d(16, out_channels, kernel_size=3, padding=1),
+        if img_size == 28:
+            # Original 28x28 path. Reshape 256 x 4 x 4, upsample 4 -> 7 -> 14 -> 28.
+            self.start_hw = 4
+            self.linear = nn.Sequential(
+                    nn.Linear(latent_size, 256 * 16),
+                    # nn.Linear(latent_size, 512 * 1),
+                    activation_fn,
+            )
+            self.layers = nn.ModuleList(
+                [
+                    # nn.ConvTranspose2d(latent_size, 256, kernel_size=2, stride=2),
+                    # nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2),
+                    nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2, padding=1, output_padding=1),
+                    *[DeConvBasicBlock(256, 256) for _ in range(blocks[0])],
+                    nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2),
+                    # nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),
+                    *[DeConvBasicBlock(128, 128) for _ in range(blocks[1])],
+                    nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
+                    # nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
+                    *[DeConvBasicBlock(64, 64) for _ in range(blocks[2])],
+                    # nn.ConvTranspose2d(64, out_channels, kernel_size=2, stride=2),
+                    nn.ConvTranspose2d(64, out_channels, kernel_size=3, padding=1),
 
-            ]
-        )
+                    # nn.ConvTranspose2d(64, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
+                    # nn.GELU(),
+                    # nn.Conv2d(64, 64, kernel_size=3, padding=1),
+                    # nn.GELU(),
+                    # nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1),
+                    # nn.GELU(),
+                    # nn.Conv2d(32, 32, kernel_size=3, padding=1),
+                    # nn.GELU(),
+                    # nn.ConvTranspose2d(32, out_channels, kernel_size=3, stride=2, padding=1, output_padding=1)
+
+                    # nn.ConvTranspose2d(128, 128, kernel_size=2, stride=2),
+                    # *[DeConvBasicBlock(128, 128) for _ in range(blocks[0])],
+                    # nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
+                    # *[DeConvBasicBlock(64, 64) for _ in range(blocks[1])],
+                    # nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),
+                    # *[DeConvBasicBlock(32, 32) for _ in range(blocks[2])],
+                    # nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
+                    # *[DeConvBasicBlock(16, 16) for _ in range(blocks[2])],
+                    # nn.ConvTranspose2d(16, 16, kernel_size=2, stride=2, padding=2),
+                    # *[DeConvBasicBlock(16, 16) for _ in range(blocks[2])],
+                    # nn.ConvTranspose2d(16, out_channels, kernel_size=3, padding=1),
+
+                ]
+            )
+        elif img_size == 224:
+            # 224x224 path (PAD-UFES-20). Reshape 256 x 7 x 7, upsample
+            # 7 -> 14 -> 28 -> 56 -> 112 -> 224 (mirrors the 224 encoder).
+            self.start_hw = 7
+            self.linear = nn.Sequential(
+                    nn.Linear(latent_size, 256 * 49),
+                    activation_fn,
+            )
+            self.layers = nn.ModuleList(
+                [
+                    nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2),
+                    *[DeConvBasicBlock(256, 256) for _ in range(blocks[0])],
+                    nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2),
+                    *[DeConvBasicBlock(128, 128) for _ in range(blocks[1])],
+                    nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2),
+                    *[DeConvBasicBlock(64, 64) for _ in range(blocks[2])],
+                    nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2),
+                    nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),
+                    nn.ConvTranspose2d(32, out_channels, kernel_size=3, padding=1),
+                ]
+            )
+        else:
+            raise ValueError(f"Unsupported img_size for DecoderCNNVAE: {img_size}")
+
         self.activation_fn = activation_fn
         self.sigmoid = nn.Tanh()
 
     def forward(self, lat):
         out = lat
         out = self.linear(out)
-        out = out.reshape(out.shape[0], -1, 4, 4)
+        out = out.reshape(out.shape[0], -1, self.start_hw, self.start_hw)
         # out = out.reshape(out.shape[0], -1, 6, 6)
         for layer in self.layers[:-1]:
             out = self.activation_fn(layer(out))

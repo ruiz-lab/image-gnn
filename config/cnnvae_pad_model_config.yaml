@@ -1,0 +1,6 @@
+model: CNNVAEModel
+args:
+    in_channels: 3
+    img_size: 224
+    latent_size: 256
+    blocks: [3, 3, 1]

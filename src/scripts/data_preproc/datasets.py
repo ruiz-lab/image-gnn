@@ -197,6 +197,77 @@ class FER2013Dataset(VisionDataset):
         return len(self.data)
 
 
+class PadUfes20Dataset(VisionDataset):
+    """
+    PAD-UFES-20 skin lesion dataset (clinical smartphone images).
+
+    Reads `labels.csv` (columns: isic_id, image_path, diagnosis, label) and the
+    PNGs under `<base_dir>/pad_ufes20/images/`. Images are kept at their native
+    224x224 RGB resolution. A deterministic stratified train/test split is built
+    from a fixed seed so the same split is reproduced across every script
+    (training, embedding, graph construction).
+    """
+
+    def __init__(
+        self,
+        base_dir="data/",
+        train=True,
+        test_size=0.2,
+        seed=42,
+        **kwargs
+    ):
+        super().__init__(
+            base_dir,
+            transform=Compose([
+                ToTensor(),
+                Normalize((.5), (.5))
+            ]),
+            target_transform=None
+        )
+
+        from sklearn.model_selection import train_test_split
+
+        labels_file = pathlib.Path(self.root) / "pad_ufes20" / "labels.csv"
+
+        image_paths = []
+        labels = []
+        with open(labels_file, "r", newline="") as file:
+            for row in csv.DictReader(file):
+                image_paths.append(row["image_path"])
+                labels.append(int(row["label"]))
+
+        image_paths = np.array(image_paths)
+        labels = np.array(labels, dtype=np.int64)
+
+        indices = np.arange(len(labels))
+        train_idx, test_idx = train_test_split(
+            indices,
+            test_size=test_size,
+            random_state=seed,
+            stratify=labels
+        )
+
+        split_idx = train_idx if train else test_idx
+        self.image_paths = image_paths[split_idx]
+        self.targets = torch.from_numpy(labels[split_idx])
+
+    def __getitem__(self, index):
+        img_path = pathlib.Path(self.root) / self.image_paths[index]
+        X = Image.open(img_path).convert("RGB")
+
+        if self.transform is not None:
+            X = self.transform(X)
+
+        data = Data()
+        data.x = X[None, ...]
+        data.y = X[None, ...]
+
+        return data
+
+    def __len__(self):
+        return len(self.image_paths)
+
+
 class PathMNISTDataset(PathMNIST):
     def __init__(self, train=True, download=True, **kwargs):
         split = 'train' if train else 'test'

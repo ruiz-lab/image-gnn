@@ -1,3 +1,4 @@
+import os
 import sys
 import yaml
 import wandb
@@ -59,9 +60,10 @@ def main():
     trainer.train()
 
 if __name__ == "__main__":
-    sweep_id = "ickck690"
+    sweep_id = os.environ.get("WANDB_SWEEP_ID", "ickck690")
+    project = os.environ.get("WANDB_PROJECT", "GNN-image-VAE_train-FER2013")
     wandb.agent(
         sweep_id=sweep_id,
         function=main,
-        project="GNN-image-VAE_train-FER2013"
+        project=project
     )

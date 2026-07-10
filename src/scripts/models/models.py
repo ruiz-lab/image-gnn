@@ -122,13 +122,14 @@ class CNNVAEModel(nn.Module):
         in_channels=3,
         latent_size=256,
         blocks=[3, 3, 1],
+        img_size=28,
         **kwargs
     ):
         super().__init__()
 
         self.latent_size = latent_size
-        self.encoder = EncoderCNNVAE(in_channels, latent_size, blocks)
-        self.decoder = DecoderCNNVAE(in_channels, latent_size, list(reversed(blocks)))
+        self.encoder = EncoderCNNVAE(in_channels, latent_size, blocks, img_size=img_size)
+        self.decoder = DecoderCNNVAE(in_channels, latent_size, list(reversed(blocks)), img_size=img_size)
 
     def _step(self):
         pass
